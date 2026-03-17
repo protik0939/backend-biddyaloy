@@ -1,0 +1,17 @@
+model ClassRoom {
+    id       String        @id @default(uuid())
+    name     String?
+    roomNo   String
+    floor    String
+    capacity Int
+    roomType ClassRoomType
+
+    institutionId String
+    institution   Institution @relation(fields: [institutionId], references: [id])
+
+    createdAt DateTime  @default(now())
+    updatedAt DateTime  @updatedAt
+    routines  Routine[]
+
+    @@map("classrooms")
+}

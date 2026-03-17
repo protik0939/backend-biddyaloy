@@ -1,0 +1,23 @@
+model Program {
+    id            String      @id @default(uuid())
+    title         String
+    shortTitle    String?
+    description   String?
+    duration      DateTime?
+    credits       Float?
+    cost          Float?
+    course Course[]
+    courseRegistrations CourseRegistration[]
+    
+    institutionId String
+    institution   Institution @relation(fields: [institutionId], references: [id])
+
+    departmentId String
+    department   Department @relation(fields: [departmentId], references: [id])
+
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@map("programs")
+}

@@ -1,0 +1,13 @@
+model Attendance {
+    id          String  @id @default(uuid())
+    date        DateTime
+    status      AttendanceStatus
+
+    courseRegistrationId String
+    courseRegistration   CourseRegistration @relation(fields: [courseRegistrationId], references: [id])
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@map("attendances")
+}

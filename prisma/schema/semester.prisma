@@ -1,0 +1,9 @@
+model Semester {
+    id            String    @id @default(uuid())
+    name          String
+    startDate     DateTime
+    endDate       DateTime
+    institutionId String
+    sections      Section[]
+    courseRegistrations CourseRegistration[]
+}

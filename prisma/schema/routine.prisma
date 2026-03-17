@@ -1,0 +1,20 @@
+model Routine {
+    id          String  @id @default(uuid())
+    name        String
+    description String?
+    version     String?
+
+    scheduleId String
+    schedule   Schedule @relation(fields: [scheduleId], references: [id])
+
+    courseRegistrationId String
+    courseRegistration   CourseRegistration @relation(fields: [courseRegistrationId], references: [id])
+
+    classRoomId String
+    classRoom   ClassRoom @relation(fields: [classRoomId], references: [id])
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@map("routines")
+}

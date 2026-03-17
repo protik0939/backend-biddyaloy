@@ -1,0 +1,21 @@
+model Institution {
+    id              String           @id @default(uuid())
+    name            String
+    description     String?
+    shortName       String?
+    type            InstitutionType?
+    institutionLogo String?
+    createdAt       DateTime         @default(now())
+    updatedAt       DateTime         @updatedAt
+    faculties       Faculty[]
+    programs        Program[]
+    classrooms      ClassRoom[]
+    sections        Section[]
+    courses         Course[]
+    adminProfile    AdminProfile[]
+    teacherProfiles  TeacherProfile[]
+    studentProfiles  StudentProfile[]
+    courseRegistrations CourseRegistration[]
+
+    @@map("institutions")
+}

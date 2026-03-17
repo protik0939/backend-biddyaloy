@@ -1,0 +1,36 @@
+model CourseRegistration {
+    id          String       @id @default(uuid())
+    routine     Routine[]
+    attendances Attendance[]
+
+    courseId String
+    course   Course @relation(fields: [courseId], references: [id])
+
+    studentProfileId String
+    studentProfile   StudentProfile @relation(fields: [studentProfileId], references: [id])
+
+    teacherProfileId String
+    teacherProfile   TeacherProfile @relation(fields: [teacherProfileId], references: [id])
+
+    sectionId String
+    section   Section @relation(fields: [sectionId], references: [id])
+
+    departmentId String?
+    department   Department? @relation(fields: [departmentId], references: [id])
+
+    programId String
+    program   Program @relation(fields: [programId], references: [id])
+
+    semesterId String
+    semester   Semester @relation(fields: [semesterId], references: [id])
+
+    institutionId String
+    institution   Institution @relation(fields: [institutionId], references: [id])
+
+    registrationDate DateTime @default(now())
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@map("course_registrations")
+}

@@ -1,0 +1,21 @@
+model TeacherProfile {
+    id             String      @id @default(uuid())
+    teacherInitial String      @unique
+    teachersId     String      @unique
+    designation    String
+    bio            String?
+    institutionId  String
+    institution    Institution @relation(fields: [institutionId], references: [id])
+    courseRegistrations CourseRegistration[]
+
+    departmentId String
+    department   Department @relation(fields: [departmentId], references: [id])
+
+    userId String
+    user   User   @relation(fields: [userId], references: [id])
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@map("teacher_profiles")
+}

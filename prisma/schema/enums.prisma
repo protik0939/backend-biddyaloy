@@ -1,0 +1,74 @@
+enum ClassRoomType {
+    LAB
+    LECTURE
+    SEMINAR
+    LIBRARY
+    TEACHER_ROOM
+    STUDENT_LOUNGE
+    ADMIN_OFFICE
+}
+
+enum BloodGroup {
+    A_POSITIVE
+    A_NEGATIVE
+    B_POSITIVE
+    B_NEGATIVE
+    AB_POSITIVE
+    AB_NEGATIVE
+    O_POSITIVE
+    O_NEGATIVE
+}
+
+enum AccountStatus {
+    ACTIVE
+    DEACTIVATED
+    BANNED
+    DELETIONPENDING
+    DELETED
+}
+
+enum InstitutionType {
+    SCHOOL
+    COLLEGE
+    UNIVERSITY
+    TRAINING_CENTER
+    OTHER
+}
+
+enum ProgramType {
+    PRIMARY
+    LOWER_SECONDARY
+    SECONDARY
+    HIGHER_SECONDARY
+    DIPLOMA
+    BACHELOR
+    MASTERS
+    PHD
+    CERTIFICATE
+}
+
+enum AdminRole {
+    SUPERADMIN
+    INSTITUTIONADMIN
+    DEPARTMENTADMIN
+    FACULTYADMIN
+}
+
+enum SlotStatus {
+    CLASS_SLOT
+    BREAK_SLOT
+}
+
+enum AttendanceStatus {
+    PRESENT
+    ABSENT
+    EXCUSED
+    LATE
+}
+
+enum UserRole {
+    SUPERADMIN
+    ADMIN
+    TEACHER
+    STUDENT
+}

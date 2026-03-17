@@ -1,0 +1,18 @@
+model Course {
+  id          String   @id @default(uuid())
+  courseCode String   @unique
+  courseTitle String
+  description String?
+
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id])
+
+  programId String
+  program   Program @relation(fields: [programId], references: [id])
+
+  courseRegistrations CourseRegistration[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+}
