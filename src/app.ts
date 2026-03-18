@@ -7,7 +7,7 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use(express.json());
 
-app.use("/api/v1/", IndexRouters);
+app.use('/api/v1/', IndexRouters);
 
 app.get("/", (req: Request, res: Response) => {
   res.send("Welcome to Biddyaloy!");

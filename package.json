@@ -6,8 +6,9 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "tsx watch src/server.ts",
-    "build": "tsc",
-    "start": "node dist/server.js"
+    "build": "prisma generate && tsup src/app.ts --format esm --platform node --target node20 --outDir api --external pg-native",
+    "start": "node dist/server.js",
+    "seed:superAdmin": "npx tsx watch src/app/scripts/seedSuperAdmin.ts"
   },
   "keywords": [],
   "author": "",
