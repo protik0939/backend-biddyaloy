@@ -1,3 +1,4 @@
+
 model User {
   id             String           @id
   name           String
@@ -11,17 +12,20 @@ model User {
   adminProfile   AdminProfile[]
   teacherProfile TeacherProfile[]
   studentProfile StudentProfile[]
+  institutionApplications InstitutionApplication[] @relation("InstitutionApplicationApplicant")
+  reviewedInstitutionApplications InstitutionApplication[] @relation("InstitutionApplicationReviewedBy")
 
   contactNo        String?
   presentAddress   String?
   permanentAddress String?
   bloodGroup       String?
   gender           String?
-  accountStatus    String? @default("ACTIVE")
 
   bio String?
 
   role String
+
+  accountStatus String @default("PENDING")
 
   @@unique([email])
   @@map("user")

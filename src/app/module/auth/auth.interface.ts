@@ -6,7 +6,7 @@ interface IRegisterUser {
   password: string;
   role: string;
   adminRole: AdminRole | null;
-  institutionId: string;
+  institutionId?: string;
 }
 
 interface ILoginUser {

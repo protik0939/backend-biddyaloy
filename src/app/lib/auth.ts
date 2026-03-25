@@ -47,7 +47,7 @@ export const auth = betterAuth({
       accountStatus: {
         type: "string",
         required: true,
-        defaultValue: AccountStatus.ACTIVE,
+        defaultValue: AccountStatus.PENDING,
       },
       role: {
         type: "string",

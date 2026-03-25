@@ -41,7 +41,7 @@ const registerSchema = z.object({
         message: `Invalid admin role. Must be one of: ${AdminRole.DEPARTMENTADMIN}, ${AdminRole.INSTITUTIONADMIN}, ${AdminRole.FACULTYADMIN}`,
       })
       .optional(),
-    institutionId: z.string("Institution ID is required"),
+    institutionId: z.string().optional(),
   }),
 });
 

@@ -20,6 +20,7 @@ enum BloodGroup {
 }
 
 enum AccountStatus {
+    PENDING
     ACTIVE
     DEACTIVATED
     BANNED
@@ -68,4 +69,10 @@ enum UserRole {
     ADMIN
     TEACHER
     STUDENT
+}
+
+enum InstitutionApplicationStatus {
+    PENDING
+    APPROVED
+    REJECTED
 }

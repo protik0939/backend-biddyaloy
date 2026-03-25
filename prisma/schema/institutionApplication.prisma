@@ -1,0 +1,29 @@
+model InstitutionApplication {
+  id String @id @default(uuid())
+
+  applicantUserId String
+  applicantUser User @relation("InstitutionApplicationApplicant", fields: [applicantUserId], references: [id])
+
+  institutionName String
+  description String?
+  shortName String?
+  institutionType InstitutionType?
+  institutionLogo String?
+
+  status InstitutionApplicationStatus @default(PENDING)
+  rejectionReason String?
+
+  reviewedByUserId String?
+  reviewedByUser User? @relation("InstitutionApplicationReviewedBy", fields: [reviewedByUserId], references: [id])
+  reviewedAt DateTime?
+
+  institutionId String?
+  institution Institution? @relation(fields: [institutionId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([applicantUserId])
+  @@index([status])
+  @@map("institution_applications")
+}

@@ -16,6 +16,7 @@ model Institution {
     teacherProfiles  TeacherProfile[]
     studentProfiles  StudentProfile[]
     courseRegistrations CourseRegistration[]
+    institutionApplications InstitutionApplication[]
 
     @@map("institutions")
 }

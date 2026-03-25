@@ -32,7 +32,6 @@ async function seedAdmin() {
         body: JSON.stringify(adminData),
       },
     );
-    console.log("eikhaneo ashe: signUpAdmin", signUpAdmin);
 
     if (signUpAdmin.ok) {
       console.log("===== Super Admin created =====");
@@ -42,6 +41,7 @@ async function seedAdmin() {
         },
         data: {
           emailVerified: true,
+          accountStatus: "ACTIVE",
         },
       });
 
