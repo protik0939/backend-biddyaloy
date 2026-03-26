@@ -5,4 +5,11 @@ export interface ICreateInstitutionSubAdminPayload {
   email: string;
   password: string;
   accountType: InstitutionSubAdminAccountType;
+  facultyId?: string;
+  facultyFullName?: string;
+  facultyShortName?: string;
+  facultyDescription?: string;
+  departmentFullName?: string;
+  departmentShortName?: string;
+  departmentDescription?: string;
 }

@@ -6,6 +6,8 @@ import { InstitutionAdminValidation } from "./institutionAdmin.validation";
 
 const router = Router();
 
+router.get("/faculties", requireSessionRole("ADMIN"), InstitutionAdminController.listFaculties);
+
 router.post(
   "/sub-admins",
   requireSessionRole("ADMIN"),

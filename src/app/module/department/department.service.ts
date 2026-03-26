@@ -126,27 +126,157 @@ const updateDepartmentProfile = async (
   userId: string,
   payload: IUpdateDepartmentProfilePayload,
 ) => {
-  const context = await resolveDepartmentContext(userId, payload.departmentId);
-
-  const updated = await prisma.department.update({
+  const adminProfile = await prisma.adminProfile.findUnique({
     where: {
-      id: context.departmentId,
-    },
-    data: {
-      fullName: payload.fullName.trim(),
-      shortName: payload.shortName?.trim() || null,
-      description: payload.description?.trim() || null,
+      userId,
     },
     select: {
-      id: true,
-      fullName: true,
-      shortName: true,
-      description: true,
-      updatedAt: true,
+      role: true,
+      institutionId: true,
     },
   });
 
-  return updated;
+  if (adminProfile?.role !== AdminRole.DEPARTMENTADMIN) {
+    throw createHttpError(403, "Only department admins can access this resource");
+  }
+
+  const normalizedFullName = payload.fullName.trim();
+  const normalizedShortName = payload.shortName?.trim() || null;
+  const normalizedDescription = payload.description?.trim() || null;
+
+  const savedDepartment = await prisma.$transaction(async (trx) => {
+    const departmentData = {
+      fullName: normalizedFullName,
+      shortName: normalizedShortName,
+      description: normalizedDescription,
+    };
+
+    const createDepartmentForSingleFaculty = async () => {
+      const faculties = await trx.faculty.findMany({
+        where: {
+          institutionId: adminProfile.institutionId,
+        },
+        select: {
+          id: true,
+        },
+        take: 2,
+        orderBy: {
+          createdAt: "asc",
+        },
+      });
+
+      if (faculties.length === 0) {
+        throw createHttpError(
+          404,
+          "No faculty found for this institution. Ask faculty admin to create a faculty first",
+        );
+      }
+
+      if (faculties.length > 1) {
+        throw createHttpError(
+          400,
+          "Multiple faculties found. Ask faculty admin to create department under a specific faculty",
+        );
+      }
+
+      return trx.department.create({
+        data: {
+          ...departmentData,
+          facultyId: faculties[0].id,
+        },
+        select: {
+          id: true,
+          fullName: true,
+          shortName: true,
+          description: true,
+          updatedAt: true,
+        },
+      });
+    };
+
+    if (payload.departmentId) {
+      const departmentById = await trx.department.findFirst({
+        where: {
+          id: payload.departmentId,
+          faculty: {
+            institutionId: adminProfile.institutionId,
+          },
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (departmentById) {
+        return trx.department.update({
+          where: {
+            id: departmentById.id,
+          },
+          data: departmentData,
+          select: {
+            id: true,
+            fullName: true,
+            shortName: true,
+            description: true,
+            updatedAt: true,
+          },
+        });
+      }
+
+      const departmentCount = await trx.department.count({
+        where: {
+          faculty: {
+            institutionId: adminProfile.institutionId,
+          },
+        },
+      });
+
+      if (departmentCount > 0) {
+        throw createHttpError(404, "Department not found for this institution");
+      }
+
+      return createDepartmentForSingleFaculty();
+    }
+
+    const departments = await trx.department.findMany({
+      where: {
+        faculty: {
+          institutionId: adminProfile.institutionId,
+        },
+      },
+      select: {
+        id: true,
+      },
+      take: 2,
+      orderBy: {
+        createdAt: "asc",
+      },
+    });
+
+    if (departments.length > 1) {
+      throw createHttpError(400, "Multiple departments found. Please provide departmentId");
+    }
+
+    if (departments.length === 0) {
+      return createDepartmentForSingleFaculty();
+    }
+
+    return trx.department.update({
+      where: {
+        id: departments[0].id,
+      },
+      data: departmentData,
+      select: {
+        id: true,
+        fullName: true,
+        shortName: true,
+        description: true,
+        updatedAt: true,
+      },
+    });
+  });
+
+  return savedDepartment;
 };
 
 const listSemesters = async (userId: string) => {
