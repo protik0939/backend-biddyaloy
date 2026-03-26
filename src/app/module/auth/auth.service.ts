@@ -1,7 +1,19 @@
 import { auth } from "../../lib/auth";
 import { prisma } from "../../lib/prisma";
-import { AccountStatus } from "../../../generated/prisma/enums";
+import { AccountStatus, AdminRole } from "../../../generated/prisma/enums";
 import { ILoginUser, IRegisterUser } from "./auth.interface";
+
+function resolveUiRoleFromAdminRole(adminRole: string | null | undefined): string {
+  if (adminRole === AdminRole.FACULTYADMIN) {
+    return "FACULTY";
+  }
+
+  if (adminRole === AdminRole.DEPARTMENTADMIN) {
+    return "DEPARTMENT";
+  }
+
+  return "ADMIN";
+}
 
 const registerUser = async (payload: IRegisterUser) => {
   const { name, email, password, role } = payload;
@@ -20,18 +32,8 @@ const registerUser = async (payload: IRegisterUser) => {
     throw new Error("Failed to register user");
   }
 
-  // if(adminRole != null) {
-  //   await prisma.adminProfile.create({
-  //     data: {
-  //       userId: data.user.id,
-  //       role: adminRole,
-  //       institutionId: "biddyaloy",
-  //     },
-  //   })
-  // }
-
-    console.log("Registration data:", data);
-    return data;
+  console.log("Registration data:", data);
+  return data;
 };
 
 const loginUser = async (payload: ILoginUser) => {
@@ -78,12 +80,28 @@ const loginUser = async (payload: ILoginUser) => {
     throw new Error("User account deletion is pending");
   }
 
+  let effectiveRole = userRecord.role;
+
+  if (userRecord.role === "ADMIN") {
+    const adminProfile = await prisma.adminProfile.findUnique({
+      where: {
+        userId: data.user.id,
+      },
+      select: {
+        role: true,
+      },
+    });
+
+    effectiveRole = resolveUiRoleFromAdminRole(adminProfile?.role);
+  }
+
   return {
     ...data,
-    role: userRecord.role,
+    role: effectiveRole,
     user: {
       ...data.user,
-      role: userRecord.role,
+      role: effectiveRole,
+      baseRole: userRecord.role,
       accountStatus: userRecord.accountStatus,
     },
   };
