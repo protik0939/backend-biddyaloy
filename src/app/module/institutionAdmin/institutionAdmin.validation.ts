@@ -10,6 +10,35 @@ const passwordSchema = z
   .regex(/[^A-Za-z0-9]/, "Password must contain at least one special character");
 
 export const InstitutionAdminValidation = {
+  semesterParamsSchema: z.object({
+    params: z.object({
+      semesterId: z.uuid("Please provide a valid semester id"),
+    }),
+  }),
+
+  createSemesterSchema: z.object({
+    body: z.object({
+      name: z.string("Semester name is required").trim().min(2).max(80),
+      startDate: z.iso.datetime("startDate must be a valid ISO datetime"),
+      endDate: z.iso.datetime("endDate must be a valid ISO datetime"),
+    }),
+  }),
+
+  updateSemesterSchema: z.object({
+    params: z.object({
+      semesterId: z.uuid("Please provide a valid semester id"),
+    }),
+    body: z
+      .object({
+        name: z.string("Semester name must be a string").trim().min(2).max(80).optional(),
+        startDate: z.iso.datetime("startDate must be a valid ISO datetime").optional(),
+        endDate: z.iso.datetime("endDate must be a valid ISO datetime").optional(),
+      })
+      .refine((value) => Object.keys(value).length > 0, {
+        message: "At least one field is required",
+      }),
+  }),
+
   createSubAdminSchema: z.object({
     body: z.object({
       name: z

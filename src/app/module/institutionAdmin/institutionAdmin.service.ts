@@ -1,7 +1,11 @@
 import { AccountStatus, AdminRole, UserRole } from "../../../generated/prisma/enums";
 import { auth } from "../../lib/auth";
 import { prisma } from "../../lib/prisma";
-import { ICreateInstitutionSubAdminPayload } from "./institutionAdmin.interface";
+import {
+  ICreateInstitutionSemesterPayload,
+  ICreateInstitutionSubAdminPayload,
+  IUpdateInstitutionSemesterPayload,
+} from "./institutionAdmin.interface";
 
 function createHttpError(statusCode: number, message: string) {
   const error = new Error(message) as Error & { statusCode?: number };
@@ -27,6 +31,163 @@ function canCreateSubAdmin(
 
   return false;
 }
+
+const resolveInstitutionAdminContext = async (creatorUserId: string) => {
+  const creatorAdminProfile = await prisma.adminProfile.findUnique({
+    where: {
+      userId: creatorUserId,
+    },
+    select: {
+      institutionId: true,
+      role: true,
+    },
+  });
+
+  if (!creatorAdminProfile?.institutionId) {
+    throw createHttpError(403, "Only institution admins can manage semesters");
+  }
+
+  if (creatorAdminProfile.role !== AdminRole.INSTITUTIONADMIN) {
+    throw createHttpError(403, "Only institution admins can manage semesters");
+  }
+
+  return creatorAdminProfile;
+};
+
+const listSemesters = async (creatorUserId: string) => {
+  const context = await resolveInstitutionAdminContext(creatorUserId);
+
+  return prisma.semester.findMany({
+    where: {
+      institutionId: context.institutionId,
+    },
+    orderBy: {
+      startDate: "desc",
+    },
+  });
+};
+
+const createSemester = async (
+  creatorUserId: string,
+  payload: ICreateInstitutionSemesterPayload,
+) => {
+  const context = await resolveInstitutionAdminContext(creatorUserId);
+  const startDate = new Date(payload.startDate);
+  const endDate = new Date(payload.endDate);
+
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    throw createHttpError(400, "Invalid startDate or endDate");
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  if (startDate <= today) {
+    throw createHttpError(400, "startDate must be after today");
+  }
+
+  if (startDate >= endDate) {
+    throw createHttpError(400, "startDate must be before endDate");
+  }
+
+  return prisma.semester.create({
+    data: {
+      name: payload.name.trim(),
+      startDate,
+      endDate,
+      institutionId: context.institutionId,
+    },
+  });
+};
+
+const updateSemester = async (
+  creatorUserId: string,
+  semesterId: string,
+  payload: IUpdateInstitutionSemesterPayload,
+) => {
+  const context = await resolveInstitutionAdminContext(creatorUserId);
+
+  const existingSemester = await prisma.semester.findFirst({
+    where: {
+      id: semesterId,
+      institutionId: context.institutionId,
+    },
+  });
+
+  if (!existingSemester) {
+    throw createHttpError(404, "Semester not found for this institution");
+  }
+
+  let nextStartDate = existingSemester.startDate;
+  let nextEndDate = existingSemester.endDate;
+
+  if (payload.startDate) {
+    const parsedStartDate = new Date(payload.startDate);
+    if (Number.isNaN(parsedStartDate.getTime())) {
+      throw createHttpError(400, "Invalid startDate");
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (parsedStartDate <= today) {
+      throw createHttpError(400, "startDate must be after today");
+    }
+
+    nextStartDate = parsedStartDate;
+  }
+
+  if (payload.endDate) {
+    const parsedEndDate = new Date(payload.endDate);
+    if (Number.isNaN(parsedEndDate.getTime())) {
+      throw createHttpError(400, "Invalid endDate");
+    }
+
+    nextEndDate = parsedEndDate;
+  }
+
+  if (nextStartDate >= nextEndDate) {
+    throw createHttpError(400, "startDate must be before endDate");
+  }
+
+  return prisma.semester.update({
+    where: {
+      id: existingSemester.id,
+    },
+    data: {
+      name: payload.name?.trim() || undefined,
+      startDate: payload.startDate ? nextStartDate : undefined,
+      endDate: payload.endDate ? nextEndDate : undefined,
+    },
+  });
+};
+
+const deleteSemester = async (creatorUserId: string, semesterId: string) => {
+  const context = await resolveInstitutionAdminContext(creatorUserId);
+
+  const existingSemester = await prisma.semester.findFirst({
+    where: {
+      id: semesterId,
+      institutionId: context.institutionId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!existingSemester) {
+    throw createHttpError(404, "Semester not found for this institution");
+  }
+
+  await prisma.semester.delete({
+    where: {
+      id: existingSemester.id,
+    },
+  });
+
+  return {
+    id: existingSemester.id,
+  };
+};
 
 const listFaculties = async (creatorUserId: string) => {
   const creatorAdminProfile = await prisma.adminProfile.findUnique({
@@ -259,6 +420,10 @@ const createSubAdminAccount = async (
 };
 
 export const InstitutionAdminService = {
+  listSemesters,
+  createSemester,
+  updateSemester,
+  deleteSemester,
   createSubAdminAccount,
   listFaculties,
 };

@@ -13,3 +13,15 @@ export interface ICreateInstitutionSubAdminPayload {
   departmentShortName?: string;
   departmentDescription?: string;
 }
+
+export interface ICreateInstitutionSemesterPayload {
+  name: string;
+  startDate: string;
+  endDate: string;
+}
+
+export interface IUpdateInstitutionSemesterPayload {
+  name?: string;
+  startDate?: string;
+  endDate?: string;
+}

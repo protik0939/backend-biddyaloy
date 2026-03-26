@@ -1,0 +1,43 @@
+model TeacherJobPost {
+  id            String   @id @default(uuid())
+  title         String
+  location      String?
+  summary       String
+  details       String[]
+  institutionId String
+  facultyId     String?
+  departmentId  String?
+  programId     String?
+  createdByUserId String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([institutionId])
+  @@index([facultyId])
+  @@index([departmentId])
+  @@index([programId])
+  @@index([createdAt])
+  @@map("teacher_job_posts")
+}
+
+model StudentAdmissionPost {
+  id            String   @id @default(uuid())
+  title         String
+  location      String?
+  summary       String
+  details       String[]
+  institutionId String
+  facultyId     String?
+  departmentId  String?
+  programId     String?
+  createdByUserId String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([institutionId])
+  @@index([facultyId])
+  @@index([departmentId])
+  @@index([programId])
+  @@index([createdAt])
+  @@map("student_admission_posts")
+}

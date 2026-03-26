@@ -3,6 +3,9 @@ import { catchAsync } from "../../shared/catchAsync";
 import { sendResponse } from "../../shared/sendResponse";
 import { InstitutionAdminService } from "./institutionAdmin.service";
 
+const readParam = (value: string | string[] | undefined) =>
+  Array.isArray(value) ? value[0] : (value ?? "");
+
 const createSubAdminAccount = catchAsync(async (req: Request, res: Response) => {
   const user = res.locals.authUser as { id: string };
   const result = await InstitutionAdminService.createSubAdminAccount(user.id, req.body);
@@ -27,7 +30,66 @@ const listFaculties = catchAsync(async (_req: Request, res: Response) => {
   });
 });
 
+const listSemesters = catchAsync(async (_req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await InstitutionAdminService.listSemesters(user.id);
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Semesters fetched successfully",
+    data: result,
+  });
+});
+
+const createSemester = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await InstitutionAdminService.createSemester(user.id, req.body);
+
+  sendResponse(res, {
+    httpStatusCode: 201,
+    success: true,
+    message: "Semester created successfully",
+    data: result,
+  });
+});
+
+const updateSemester = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await InstitutionAdminService.updateSemester(
+    user.id,
+    readParam(req.params.semesterId),
+    req.body,
+  );
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Semester updated successfully",
+    data: result,
+  });
+});
+
+const deleteSemester = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await InstitutionAdminService.deleteSemester(
+    user.id,
+    readParam(req.params.semesterId),
+  );
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Semester deleted successfully",
+    data: result,
+  });
+});
+
 export const InstitutionAdminController = {
   createSubAdminAccount,
   listFaculties,
+  listSemesters,
+  createSemester,
+  updateSemester,
+  deleteSemester,
 };
