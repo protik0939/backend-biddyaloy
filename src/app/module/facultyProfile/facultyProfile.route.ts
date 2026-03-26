@@ -19,4 +19,11 @@ router.patch(
   FacultyProfileController.updateFacultyDisplayName,
 );
 
+router.post(
+  "/departments",
+  requireSessionRole("ADMIN", "FACULTY"),
+  validateRequest(FacultyProfileValidation.createDepartmentSchema),
+  FacultyProfileController.createDepartment,
+);
+
 export const FacultyProfileRouter = router;

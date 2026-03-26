@@ -1,6 +1,8 @@
 import { AdminRole } from "../../../generated/prisma/enums";
 import { prisma } from "../../lib/prisma";
 import {
+  ICreateFacultyDepartmentPayload,
+  IFacultyDepartmentResult,
   IFacultyProfileDetailsResult,
   IUpdatedFacultyDisplayNameResult,
   IUpdateFacultyDisplayNamePayload,
@@ -217,7 +219,88 @@ const getFacultyProfileDetails = async (userId: string): Promise<IFacultyProfile
   };
 };
 
+const createDepartment = async (
+  userId: string,
+  payload: ICreateFacultyDepartmentPayload,
+): Promise<IFacultyDepartmentResult> => {
+  const adminProfile = await prisma.adminProfile.findUnique({
+    where: {
+      userId,
+    },
+    select: {
+      role: true,
+      institutionId: true,
+    },
+  });
+
+  if (adminProfile?.role !== AdminRole.FACULTYADMIN) {
+    throw createHttpError(403, "Only faculty admins can create departments");
+  }
+
+  let targetFacultyId: string | undefined = payload.facultyId;
+
+  if (targetFacultyId) {
+    const byId = await prisma.faculty.findFirst({
+      where: {
+        id: targetFacultyId,
+        institutionId: adminProfile.institutionId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!byId) {
+      throw createHttpError(404, "Faculty not found for this institution");
+    }
+  } else {
+    const faculties = await prisma.faculty.findMany({
+      where: {
+        institutionId: adminProfile.institutionId,
+      },
+      select: {
+        id: true,
+      },
+      take: 2,
+      orderBy: {
+        createdAt: "asc",
+      },
+    });
+
+    if (faculties.length === 0) {
+      throw createHttpError(
+        404,
+        "No faculty found for this institution. Update faculty profile first",
+      );
+    }
+
+    if (faculties.length > 1) {
+      throw createHttpError(400, "Multiple faculties found. Please provide facultyId");
+    }
+
+    targetFacultyId = faculties[0].id;
+  }
+
+  return prisma.department.create({
+    data: {
+      fullName: payload.fullName.trim(),
+      shortName: payload.shortName?.trim() || null,
+      description: payload.description?.trim() || null,
+      facultyId: targetFacultyId,
+    },
+    select: {
+      id: true,
+      fullName: true,
+      shortName: true,
+      description: true,
+      facultyId: true,
+      createdAt: true,
+    },
+  });
+};
+
 export const FacultyProfileService = {
+  createDepartment,
   getFacultyProfileDetails,
   updateFacultyDisplayName,
 };

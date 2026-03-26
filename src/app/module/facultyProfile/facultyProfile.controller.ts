@@ -27,7 +27,20 @@ const updateFacultyDisplayName = catchAsync(async (req: Request, res: Response) 
   });
 });
 
+const createDepartment = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await FacultyProfileService.createDepartment(user.id, req.body);
+
+  sendResponse(res, {
+    httpStatusCode: 201,
+    success: true,
+    message: "Department created successfully",
+    data: result,
+  });
+});
+
 export const FacultyProfileController = {
+  createDepartment,
   getFacultyProfileDetails,
   updateFacultyDisplayName,
 };

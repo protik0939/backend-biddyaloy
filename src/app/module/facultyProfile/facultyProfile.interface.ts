@@ -21,3 +21,19 @@ export interface IFacultyProfileDetailsResult {
   shortName: string | null;
   description: string | null;
 }
+
+export interface ICreateFacultyDepartmentPayload {
+  fullName: string;
+  shortName?: string;
+  description?: string;
+  facultyId?: string;
+}
+
+export interface IFacultyDepartmentResult {
+  id: string;
+  fullName: string;
+  shortName: string | null;
+  description: string | null;
+  facultyId: string | null;
+  createdAt: Date;
+}
