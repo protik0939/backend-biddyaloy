@@ -17,6 +17,10 @@ model Department {
     teacherProfiles TeacherProfile[]
     studentProfiles StudentProfile[]
     courseRegistrations CourseRegistration[]
+    sectionTeacherAssignments SectionCourseTeacherAssignment[]
+    teacherJobApplications TeacherJobApplication[]
+    teacherClassworks TeacherClasswork[]
+    teacherMarks TeacherMark[]
 
     @@map("departments")
 }

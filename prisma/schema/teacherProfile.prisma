@@ -7,6 +7,10 @@ model TeacherProfile {
     institutionId  String
     institution    Institution @relation(fields: [institutionId], references: [id])
     courseRegistrations CourseRegistration[]
+    sectionTeacherAssignments SectionCourseTeacherAssignment[]
+    classworks TeacherClasswork[]
+    jobApplications TeacherJobApplication[]
+    marks TeacherMark[]
 
     departmentId String
     department   Department @relation(fields: [departmentId], references: [id])

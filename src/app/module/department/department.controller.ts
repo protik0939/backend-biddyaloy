@@ -292,6 +292,33 @@ const listCourseRegistrations = catchAsync(async (req: Request, res: Response) =
   });
 });
 
+const listSectionCourseTeacherAssignments = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await DepartmentService.listSectionCourseTeacherAssignments(
+    user.id,
+    req.query.departmentId as string | undefined,
+  );
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Course teacher assignments fetched successfully",
+    data: result,
+  });
+});
+
+const upsertSectionCourseTeacherAssignment = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await DepartmentService.upsertSectionCourseTeacherAssignment(user.id, req.body);
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Course teacher assignment saved successfully",
+    data: result,
+  });
+});
+
 const createCourseRegistration = catchAsync(async (req: Request, res: Response) => {
   const user = res.locals.authUser as { id: string };
   const result = await DepartmentService.createCourseRegistration(user.id, req.body);
@@ -443,6 +470,8 @@ export const DepartmentController = {
   updateCourse,
   deleteCourse,
   listCourseRegistrations,
+  listSectionCourseTeacherAssignments,
+  upsertSectionCourseTeacherAssignment,
   createCourseRegistration,
   updateCourseRegistration,
   deleteCourseRegistration,

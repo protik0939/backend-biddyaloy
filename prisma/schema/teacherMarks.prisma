@@ -1,0 +1,37 @@
+model TeacherMark {
+    id String @id @default(uuid())
+
+    courseRegistrationId String @unique
+    courseRegistration CourseRegistration @relation(fields: [courseRegistrationId], references: [id])
+
+    teacherProfileId String
+    teacherProfile TeacherProfile @relation(fields: [teacherProfileId], references: [id])
+
+    institutionId String
+    institution Institution @relation(fields: [institutionId], references: [id])
+
+    departmentId String?
+    department Department? @relation(fields: [departmentId], references: [id])
+
+    labReport Float?
+    labTask Float?
+    project Float?
+    projectReport Float?
+    presentation Float?
+    labEvaluation Float?
+    viva Float?
+
+    quiz1 Float?
+    quiz2 Float?
+    quiz3 Float?
+    assignment Float?
+    midterm Float?
+    finalExam Float?
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([teacherProfileId, createdAt])
+    @@index([institutionId])
+    @@map("teacher_marks")
+}

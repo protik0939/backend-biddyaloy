@@ -15,6 +15,7 @@ import {
   IUpdateCourseRegistrationPayload,
   IUpdateDepartmentProfilePayload,
   IUpdateProgramPayload,
+  IUpsertSectionCourseTeacherAssignmentPayload,
   IUpdateSectionPayload,
   IUpdateSemesterPayload,
   IUpdateStudentPayload,
@@ -915,13 +916,204 @@ const listCourseRegistrations = async (userId: string, departmentId?: string) =>
   });
 };
 
+const listSectionCourseTeacherAssignments = async (userId: string, departmentId?: string) => {
+  const context = await resolveDepartmentContext(userId, departmentId);
+
+  return prisma.sectionCourseTeacherAssignment.findMany({
+    where: {
+      institutionId: context.institutionId,
+      departmentId: context.departmentId,
+    },
+    include: {
+      section: {
+        select: {
+          id: true,
+          name: true,
+          semesterId: true,
+          batch: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      },
+      course: {
+        select: {
+          id: true,
+          courseCode: true,
+          courseTitle: true,
+        },
+      },
+      teacherProfile: {
+        select: {
+          id: true,
+          teacherInitial: true,
+          teachersId: true,
+          designation: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+};
+
+const upsertSectionCourseTeacherAssignment = async (
+  userId: string,
+  payload: IUpsertSectionCourseTeacherAssignmentPayload,
+) => {
+  const context = await resolveDepartmentContext(userId, payload.departmentId);
+
+  const [course, section, teacher, semester] = await Promise.all([
+    prisma.course.findFirst({
+      where: {
+        id: payload.courseId,
+        institutionId: context.institutionId,
+        departmentId: context.departmentId,
+      },
+      select: {
+        id: true,
+      },
+    }),
+    prisma.section.findFirst({
+      where: {
+        id: payload.sectionId,
+        institutionId: context.institutionId,
+        departmentId: context.departmentId,
+      },
+      select: {
+        id: true,
+        semesterId: true,
+      },
+    }),
+    prisma.teacherProfile.findFirst({
+      where: {
+        id: payload.teacherProfileId,
+        institutionId: context.institutionId,
+        departmentId: context.departmentId,
+      },
+      select: {
+        id: true,
+      },
+    }),
+    prisma.semester.findFirst({
+      where: {
+        id: payload.semesterId,
+        institutionId: context.institutionId,
+      },
+      select: {
+        id: true,
+      },
+    }),
+  ]);
+
+  if (!course) {
+    throw createHttpError(404, "Course not found for this department");
+  }
+
+  if (!section) {
+    throw createHttpError(404, "Section not found for this department");
+  }
+
+  if (!teacher) {
+    throw createHttpError(404, "Teacher not found for this department");
+  }
+
+  if (!semester) {
+    throw createHttpError(404, "Semester not found for this institution");
+  }
+
+  if (section.semesterId !== payload.semesterId) {
+    throw createHttpError(400, "Selected section does not belong to the selected semester");
+  }
+
+  const assignment = await prisma.sectionCourseTeacherAssignment.upsert({
+    where: {
+      sectionId_courseId: {
+        sectionId: payload.sectionId,
+        courseId: payload.courseId,
+      },
+    },
+    create: {
+      sectionId: payload.sectionId,
+      courseId: payload.courseId,
+      teacherProfileId: payload.teacherProfileId,
+      institutionId: context.institutionId,
+      departmentId: context.departmentId,
+    },
+    update: {
+      teacherProfileId: payload.teacherProfileId,
+    },
+    include: {
+      section: {
+        select: {
+          id: true,
+          name: true,
+          semesterId: true,
+          batch: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      },
+      course: {
+        select: {
+          id: true,
+          courseCode: true,
+          courseTitle: true,
+        },
+      },
+      teacherProfile: {
+        select: {
+          id: true,
+          teacherInitial: true,
+          teachersId: true,
+          designation: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  await prisma.courseRegistration.updateMany({
+    where: {
+      institutionId: context.institutionId,
+      departmentId: context.departmentId,
+      sectionId: payload.sectionId,
+      courseId: payload.courseId,
+    },
+    data: {
+      teacherProfileId: payload.teacherProfileId,
+    },
+  });
+
+  return assignment;
+};
+
 const createCourseRegistration = async (
   userId: string,
   payload: ICreateCourseRegistrationPayload,
 ) => {
   const context = await resolveDepartmentContext(userId, payload.departmentId);
 
-  const [course, student, teacher, section, semester] = await Promise.all([
+  const [course, student, section, semester] = await Promise.all([
     prisma.course.findFirst({
       where: {
         id: payload.courseId,
@@ -936,16 +1128,6 @@ const createCourseRegistration = async (
     prisma.studentProfile.findFirst({
       where: {
         id: payload.studentProfileId,
-        institutionId: context.institutionId,
-        departmentId: context.departmentId,
-      },
-      select: {
-        id: true,
-      },
-    }),
-    prisma.teacherProfile.findFirst({
-      where: {
-        id: payload.teacherProfileId,
         institutionId: context.institutionId,
         departmentId: context.departmentId,
       },
@@ -983,10 +1165,6 @@ const createCourseRegistration = async (
     throw createHttpError(404, "Student not found for this department");
   }
 
-  if (!teacher) {
-    throw createHttpError(404, "Teacher not found for this department");
-  }
-
   if (!section) {
     throw createHttpError(404, "Section not found for this department");
   }
@@ -1022,6 +1200,25 @@ const createCourseRegistration = async (
     throw createHttpError(400, "Selected course does not belong to the selected program");
   }
 
+  const sectionCourseTeacherAssignment = await prisma.sectionCourseTeacherAssignment.findFirst({
+    where: {
+      institutionId: context.institutionId,
+      departmentId: context.departmentId,
+      sectionId: payload.sectionId,
+      courseId: payload.courseId,
+    },
+    select: {
+      teacherProfileId: true,
+    },
+  });
+
+  if (!sectionCourseTeacherAssignment) {
+    throw createHttpError(
+      400,
+      "No teacher assigned for the selected section and course. Assign teacher first.",
+    );
+  }
+
   const existingRegistration = await prisma.courseRegistration.findFirst({
     where: {
       institutionId: context.institutionId,
@@ -1043,7 +1240,7 @@ const createCourseRegistration = async (
     data: {
       courseId: payload.courseId,
       studentProfileId: payload.studentProfileId,
-      teacherProfileId: payload.teacherProfileId,
+      teacherProfileId: sectionCourseTeacherAssignment.teacherProfileId,
       sectionId: payload.sectionId,
       departmentId: context.departmentId,
       programId: resolvedProgramId,
@@ -1135,7 +1332,6 @@ const updateCourseRegistration = async (
       id: true,
       courseId: true,
       studentProfileId: true,
-      teacherProfileId: true,
       sectionId: true,
       programId: true,
       semesterId: true,
@@ -1148,11 +1344,10 @@ const updateCourseRegistration = async (
 
   const nextCourseId = payload.courseId ?? existing.courseId;
   const nextStudentProfileId = payload.studentProfileId ?? existing.studentProfileId;
-  const nextTeacherProfileId = payload.teacherProfileId ?? existing.teacherProfileId;
   const nextSectionId = payload.sectionId ?? existing.sectionId;
   const nextSemesterId = payload.semesterId ?? existing.semesterId;
 
-  const [course, student, teacher, section, semester] = await Promise.all([
+  const [course, student, section, semester] = await Promise.all([
     prisma.course.findFirst({
       where: {
         id: nextCourseId,
@@ -1167,16 +1362,6 @@ const updateCourseRegistration = async (
     prisma.studentProfile.findFirst({
       where: {
         id: nextStudentProfileId,
-        institutionId: context.institutionId,
-        departmentId: context.departmentId,
-      },
-      select: {
-        id: true,
-      },
-    }),
-    prisma.teacherProfile.findFirst({
-      where: {
-        id: nextTeacherProfileId,
         institutionId: context.institutionId,
         departmentId: context.departmentId,
       },
@@ -1214,10 +1399,6 @@ const updateCourseRegistration = async (
     throw createHttpError(404, "Student not found for this department");
   }
 
-  if (!teacher) {
-    throw createHttpError(404, "Teacher not found for this department");
-  }
-
   if (!section) {
     throw createHttpError(404, "Section not found for this department");
   }
@@ -1253,6 +1434,25 @@ const updateCourseRegistration = async (
     throw createHttpError(400, "Selected course does not belong to the selected program");
   }
 
+  const sectionCourseTeacherAssignment = await prisma.sectionCourseTeacherAssignment.findFirst({
+    where: {
+      institutionId: context.institutionId,
+      departmentId: context.departmentId,
+      sectionId: nextSectionId,
+      courseId: nextCourseId,
+    },
+    select: {
+      teacherProfileId: true,
+    },
+  });
+
+  if (!sectionCourseTeacherAssignment) {
+    throw createHttpError(
+      400,
+      "No teacher assigned for the selected section and course. Assign teacher first.",
+    );
+  }
+
   const duplicate = await prisma.courseRegistration.findFirst({
     where: {
       id: {
@@ -1280,7 +1480,7 @@ const updateCourseRegistration = async (
     data: {
       courseId: nextCourseId,
       studentProfileId: nextStudentProfileId,
-      teacherProfileId: nextTeacherProfileId,
+      teacherProfileId: sectionCourseTeacherAssignment.teacherProfileId,
       sectionId: nextSectionId,
       programId: resolvedProgramId,
       semesterId: nextSemesterId,
@@ -1660,6 +1860,8 @@ export const DepartmentService = {
   updateCourse,
   deleteCourse,
   listCourseRegistrations,
+  listSectionCourseTeacherAssignments,
+  upsertSectionCourseTeacherAssignment,
   createCourseRegistration,
   updateCourseRegistration,
   deleteCourseRegistration,

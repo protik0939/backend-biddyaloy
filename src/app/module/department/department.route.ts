@@ -107,6 +107,17 @@ router.get(
   requireSessionRole("ADMIN", "DEPARTMENT"),
   DepartmentController.listCourseRegistrations,
 );
+router.get(
+  "/course-teacher-assignments",
+  requireSessionRole("ADMIN", "DEPARTMENT"),
+  DepartmentController.listSectionCourseTeacherAssignments,
+);
+router.post(
+  "/course-teacher-assignments",
+  requireSessionRole("ADMIN", "DEPARTMENT"),
+  validateRequest(DepartmentValidation.upsertSectionCourseTeacherAssignmentSchema),
+  DepartmentController.upsertSectionCourseTeacherAssignment,
+);
 router.post(
   "/course-registrations",
   requireSessionRole("ADMIN", "DEPARTMENT"),

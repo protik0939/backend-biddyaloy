@@ -2,6 +2,7 @@ model CourseRegistration {
     id          String       @id @default(uuid())
     routine     Routine[]
     attendances Attendance[]
+    mark        TeacherMark?
 
     courseId String
     course   Course @relation(fields: [courseId], references: [id])

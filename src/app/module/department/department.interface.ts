@@ -115,7 +115,6 @@ export interface IUpdateStudentPayload {
 export interface ICreateCourseRegistrationPayload {
   courseId: string;
   studentProfileId: string;
-  teacherProfileId: string;
   sectionId: string;
   programId?: string;
   semesterId: string;
@@ -126,9 +125,16 @@ export interface ICreateCourseRegistrationPayload {
 export interface IUpdateCourseRegistrationPayload {
   courseId?: string;
   studentProfileId?: string;
-  teacherProfileId?: string;
   sectionId?: string;
   programId?: string;
   semesterId?: string;
   registrationDate?: string;
+}
+
+export interface IUpsertSectionCourseTeacherAssignmentPayload {
+  sectionId: string;
+  courseId: string;
+  teacherProfileId: string;
+  semesterId: string;
+  departmentId?: string;
 }

@@ -172,7 +172,6 @@ export const DepartmentValidation = {
     body: z.object({
       courseId: uuidSchema,
       studentProfileId: uuidSchema,
-      teacherProfileId: uuidSchema,
       sectionId: uuidSchema,
       programId: uuidSchema.optional(),
       semesterId: uuidSchema,
@@ -189,7 +188,6 @@ export const DepartmentValidation = {
       .object({
         courseId: uuidSchema.optional(),
         studentProfileId: uuidSchema.optional(),
-        teacherProfileId: uuidSchema.optional(),
         sectionId: uuidSchema.optional(),
         programId: uuidSchema.optional(),
         semesterId: uuidSchema.optional(),
@@ -203,6 +201,16 @@ export const DepartmentValidation = {
   deleteCourseRegistrationSchema: z.object({
     params: z.object({
       courseRegistrationId: uuidSchema,
+    }),
+  }),
+
+  upsertSectionCourseTeacherAssignmentSchema: z.object({
+    body: z.object({
+      sectionId: uuidSchema,
+      courseId: uuidSchema,
+      teacherProfileId: uuidSchema,
+      semesterId: uuidSchema,
+      departmentId: uuidSchema.optional(),
     }),
   }),
 

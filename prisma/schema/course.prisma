@@ -15,6 +15,7 @@ model Course {
   program   Program? @relation(fields: [programId], references: [id])
 
   courseRegistrations CourseRegistration[]
+  sectionTeacherAssignments SectionCourseTeacherAssignment[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
