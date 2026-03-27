@@ -3,12 +3,16 @@ model Course {
   courseCode String   @unique
   courseTitle String
   description String?
+  credits     Int?
 
   institutionId String
   institution   Institution @relation(fields: [institutionId], references: [id])
 
-  programId String
-  program   Program @relation(fields: [programId], references: [id])
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id])
+
+  programId String?
+  program   Program? @relation(fields: [programId], references: [id])
 
   courseRegistrations CourseRegistration[]
 

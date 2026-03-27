@@ -2,6 +2,7 @@ import { AdminRole, UserRole } from "../../../generated/prisma/enums";
 import { auth } from "../../lib/auth";
 import { prisma } from "../../lib/prisma";
 import {
+  ICreateCourseRegistrationPayload,
   ICreateCoursePayload,
   ICreateProgramPayload,
   ICreateSectionPayload,
@@ -527,9 +528,7 @@ const listCourses = async (userId: string, departmentId?: string) => {
   return prisma.course.findMany({
     where: {
       institutionId: context.institutionId,
-      program: {
-        departmentId: context.departmentId,
-      },
+      departmentId: context.departmentId,
     },
     include: {
       program: {
@@ -548,19 +547,21 @@ const listCourses = async (userId: string, departmentId?: string) => {
 const createCourse = async (userId: string, payload: ICreateCoursePayload) => {
   const context = await resolveDepartmentContext(userId);
 
-  const program = await prisma.program.findFirst({
-    where: {
-      id: payload.programId,
-      institutionId: context.institutionId,
-      departmentId: context.departmentId,
-    },
-    select: {
-      id: true,
-    },
-  });
+  if (payload.programId) {
+    const program = await prisma.program.findFirst({
+      where: {
+        id: payload.programId,
+        institutionId: context.institutionId,
+        departmentId: context.departmentId,
+      },
+      select: {
+        id: true,
+      },
+    });
 
-  if (!program) {
-    throw createHttpError(404, "Program not found for this department");
+    if (!program) {
+      throw createHttpError(404, "Program not found for this department");
+    }
   }
 
   return prisma.course.create({
@@ -568,7 +569,9 @@ const createCourse = async (userId: string, payload: ICreateCoursePayload) => {
       courseCode: payload.courseCode.trim(),
       courseTitle: payload.courseTitle.trim(),
       description: payload.description?.trim() || null,
+      credits: payload.credits,
       institutionId: context.institutionId,
+      departmentId: context.departmentId,
       programId: payload.programId,
     },
   });
@@ -581,9 +584,7 @@ const updateCourse = async (userId: string, courseId: string, payload: IUpdateCo
     where: {
       id: courseId,
       institutionId: context.institutionId,
-      program: {
-        departmentId: context.departmentId,
-      },
+      departmentId: context.departmentId,
     },
     select: {
       id: true,
@@ -619,7 +620,311 @@ const updateCourse = async (userId: string, courseId: string, payload: IUpdateCo
       courseCode: payload.courseCode?.trim(),
       courseTitle: payload.courseTitle?.trim(),
       description: payload.description?.trim() || undefined,
+      credits: payload.credits,
       programId: payload.programId,
+    },
+  });
+};
+
+const deleteCourse = async (userId: string, courseId: string) => {
+  const context = await resolveDepartmentContext(userId);
+
+  const course = await prisma.course.findFirst({
+    where: {
+      id: courseId,
+      institutionId: context.institutionId,
+      departmentId: context.departmentId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!course) {
+    throw createHttpError(404, "Course not found");
+  }
+
+  await prisma.course.delete({
+    where: {
+      id: courseId,
+    },
+  });
+
+  return {
+    id: courseId,
+  };
+};
+
+const listCourseRegistrations = async (userId: string, departmentId?: string) => {
+  const context = await resolveDepartmentContext(userId, departmentId);
+
+  return prisma.courseRegistration.findMany({
+    where: {
+      institutionId: context.institutionId,
+      departmentId: context.departmentId,
+    },
+    include: {
+      course: {
+        select: {
+          id: true,
+          courseCode: true,
+          courseTitle: true,
+        },
+      },
+      studentProfile: {
+        select: {
+          id: true,
+          studentInitial: true,
+          studentsId: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      },
+      teacherProfile: {
+        select: {
+          id: true,
+          teacherInitial: true,
+          teachersId: true,
+          designation: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      },
+      section: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      program: {
+        select: {
+          id: true,
+          title: true,
+        },
+      },
+      semester: {
+        select: {
+          id: true,
+          name: true,
+          startDate: true,
+          endDate: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+};
+
+const createCourseRegistration = async (
+  userId: string,
+  payload: ICreateCourseRegistrationPayload,
+) => {
+  const context = await resolveDepartmentContext(userId, payload.departmentId);
+
+  const [course, student, teacher, section, semester] = await Promise.all([
+    prisma.course.findFirst({
+      where: {
+        id: payload.courseId,
+        institutionId: context.institutionId,
+        departmentId: context.departmentId,
+      },
+      select: {
+        id: true,
+        programId: true,
+      },
+    }),
+    prisma.studentProfile.findFirst({
+      where: {
+        id: payload.studentProfileId,
+        institutionId: context.institutionId,
+        departmentId: context.departmentId,
+      },
+      select: {
+        id: true,
+      },
+    }),
+    prisma.teacherProfile.findFirst({
+      where: {
+        id: payload.teacherProfileId,
+        institutionId: context.institutionId,
+        departmentId: context.departmentId,
+      },
+      select: {
+        id: true,
+      },
+    }),
+    prisma.section.findFirst({
+      where: {
+        id: payload.sectionId,
+        institutionId: context.institutionId,
+        departmentId: context.departmentId,
+      },
+      select: {
+        id: true,
+        semesterId: true,
+      },
+    }),
+    prisma.semester.findFirst({
+      where: {
+        id: payload.semesterId,
+        institutionId: context.institutionId,
+      },
+      select: {
+        id: true,
+      },
+    }),
+  ]);
+
+  if (!course) {
+    throw createHttpError(404, "Course not found for this department");
+  }
+
+  if (!student) {
+    throw createHttpError(404, "Student not found for this department");
+  }
+
+  if (!teacher) {
+    throw createHttpError(404, "Teacher not found for this department");
+  }
+
+  if (!section) {
+    throw createHttpError(404, "Section not found for this department");
+  }
+
+  if (!semester) {
+    throw createHttpError(404, "Semester not found for this institution");
+  }
+
+  if (section.semesterId !== payload.semesterId) {
+    throw createHttpError(400, "Selected section does not belong to the selected semester");
+  }
+
+  const resolvedProgramId = payload.programId ?? course.programId ?? null;
+
+  if (!resolvedProgramId) {
+    throw createHttpError(
+      400,
+      "Program is required for this registration. Either select a course linked to a program or provide programId",
+    );
+  }
+
+  const program = await prisma.program.findFirst({
+    where: {
+      id: resolvedProgramId,
+      institutionId: context.institutionId,
+      departmentId: context.departmentId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!program) {
+    throw createHttpError(404, "Program not found for this department");
+  }
+
+  if (course.programId && course.programId !== resolvedProgramId) {
+    throw createHttpError(400, "Selected course does not belong to the selected program");
+  }
+
+  const existingRegistration = await prisma.courseRegistration.findFirst({
+    where: {
+      institutionId: context.institutionId,
+      departmentId: context.departmentId,
+      courseId: payload.courseId,
+      studentProfileId: payload.studentProfileId,
+      semesterId: payload.semesterId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (existingRegistration) {
+    throw createHttpError(409, "Student is already registered for this course in the selected semester");
+  }
+
+  return prisma.courseRegistration.create({
+    data: {
+      courseId: payload.courseId,
+      studentProfileId: payload.studentProfileId,
+      teacherProfileId: payload.teacherProfileId,
+      sectionId: payload.sectionId,
+      departmentId: context.departmentId,
+      programId: resolvedProgramId,
+      semesterId: payload.semesterId,
+      institutionId: context.institutionId,
+      registrationDate: payload.registrationDate ? new Date(payload.registrationDate) : undefined,
+    },
+    include: {
+      course: {
+        select: {
+          id: true,
+          courseCode: true,
+          courseTitle: true,
+        },
+      },
+      studentProfile: {
+        select: {
+          id: true,
+          studentInitial: true,
+          studentsId: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      },
+      teacherProfile: {
+        select: {
+          id: true,
+          teacherInitial: true,
+          teachersId: true,
+          designation: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      },
+      section: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      program: {
+        select: {
+          id: true,
+          title: true,
+        },
+      },
+      semester: {
+        select: {
+          id: true,
+          name: true,
+          startDate: true,
+          endDate: true,
+        },
+      },
     },
   });
 };
@@ -895,6 +1200,9 @@ export const DepartmentService = {
   listCourses,
   createCourse,
   updateCourse,
+  deleteCourse,
+  listCourseRegistrations,
+  createCourseRegistration,
   listTeachers,
   createTeacher,
   updateTeacher,

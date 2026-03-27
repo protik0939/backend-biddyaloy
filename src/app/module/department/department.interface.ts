@@ -55,13 +55,15 @@ export interface ICreateCoursePayload {
   courseCode: string;
   courseTitle: string;
   description?: string;
-  programId: string;
+  credits?: number;
+  programId?: string;
 }
 
 export interface IUpdateCoursePayload {
   courseCode?: string;
   courseTitle?: string;
   description?: string;
+  credits?: number;
   programId?: string;
 }
 
@@ -95,4 +97,15 @@ export interface ICreateStudentPayload {
 export interface IUpdateStudentPayload {
   bio?: string;
   accountStatus?: AccountStatus;
+}
+
+export interface ICreateCourseRegistrationPayload {
+  courseId: string;
+  studentProfileId: string;
+  teacherProfileId: string;
+  sectionId: string;
+  programId?: string;
+  semesterId: string;
+  departmentId?: string;
+  registrationDate?: string;
 }

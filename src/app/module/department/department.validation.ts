@@ -47,7 +47,7 @@ export const DepartmentValidation = {
 
   createSectionSchema: z.object({
     body: z.object({
-      name: z.string("Section name is required").trim().min(2).max(80),
+      name: z.string("Section name is required").trim().min(1).max(80),
       semesterId: uuidSchema,
       sectionCapacity: z.number().int().positive().max(500).optional(),
       description: z.string("Description must be a string").trim().min(3).max(500).optional(),
@@ -61,7 +61,7 @@ export const DepartmentValidation = {
     }),
     body: z
       .object({
-        name: z.string("Section name must be a string").trim().min(2).max(80).optional(),
+        name: z.string("Section name must be a string").trim().min(1).max(80).optional(),
         semesterId: uuidSchema.optional(),
         sectionCapacity: z.number().int().positive().max(500).optional(),
         description: z.string("Description must be a string").trim().min(3).max(500).optional(),
@@ -104,7 +104,8 @@ export const DepartmentValidation = {
       courseCode: z.string("Course code is required").trim().min(2).max(30),
       courseTitle: z.string("Course title is required").trim().min(2).max(120),
       description: z.string("Description must be a string").trim().min(3).max(500).optional(),
-      programId: uuidSchema,
+      credits: z.number().int().positive().max(500).optional(),
+      programId: uuidSchema.optional(),
     }),
   }),
 
@@ -117,11 +118,31 @@ export const DepartmentValidation = {
         courseCode: z.string("Course code must be a string").trim().min(2).max(30).optional(),
         courseTitle: z.string("Course title must be a string").trim().min(2).max(120).optional(),
         description: z.string("Description must be a string").trim().min(3).max(500).optional(),
+        credits: z.number().int().positive().max(500).optional(),
         programId: uuidSchema.optional(),
       })
       .refine((value) => Object.keys(value).length > 0, {
         message: "At least one field is required",
       }),
+  }),
+
+  deleteCourseSchema: z.object({
+    params: z.object({
+      courseId: uuidSchema,
+    }),
+  }),
+
+  createCourseRegistrationSchema: z.object({
+    body: z.object({
+      courseId: uuidSchema,
+      studentProfileId: uuidSchema,
+      teacherProfileId: uuidSchema,
+      sectionId: uuidSchema,
+      programId: uuidSchema.optional(),
+      semesterId: uuidSchema,
+      departmentId: uuidSchema.optional(),
+      registrationDate: z.iso.datetime("registrationDate must be a valid ISO datetime").optional(),
+    }),
   }),
 
   createTeacherSchema: z.object({

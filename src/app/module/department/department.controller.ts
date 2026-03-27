@@ -202,6 +202,45 @@ const updateCourse = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const deleteCourse = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await DepartmentService.deleteCourse(user.id, readParam(req.params.courseId));
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Course deleted successfully",
+    data: result,
+  });
+});
+
+const listCourseRegistrations = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await DepartmentService.listCourseRegistrations(
+    user.id,
+    req.query.departmentId as string | undefined,
+  );
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Course registrations fetched successfully",
+    data: result,
+  });
+});
+
+const createCourseRegistration = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await DepartmentService.createCourseRegistration(user.id, req.body);
+
+  sendResponse(res, {
+    httpStatusCode: 201,
+    success: true,
+    message: "Course registration created successfully",
+    data: result,
+  });
+});
+
 const listTeachers = catchAsync(async (req: Request, res: Response) => {
   const user = res.locals.authUser as { id: string };
   const result = await DepartmentService.listTeachers(
@@ -303,6 +342,9 @@ export const DepartmentController = {
   listCourses,
   createCourse,
   updateCourse,
+  deleteCourse,
+  listCourseRegistrations,
+  createCourseRegistration,
   listTeachers,
   createTeacher,
   updateTeacher,

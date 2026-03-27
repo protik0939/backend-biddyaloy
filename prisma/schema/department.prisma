@@ -11,6 +11,7 @@ model Department {
     updatedAt DateTime  @updatedAt
 
     programs  Program[]
+    courses Course[]
     sections  Section[]
     teacherProfiles TeacherProfile[]
     studentProfiles StudentProfile[]

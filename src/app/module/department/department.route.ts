@@ -69,6 +69,24 @@ router.patch(
   validateRequest(DepartmentValidation.updateCourseSchema),
   DepartmentController.updateCourse,
 );
+router.delete(
+  "/courses/:courseId",
+  requireSessionRole("ADMIN", "DEPARTMENT"),
+  validateRequest(DepartmentValidation.deleteCourseSchema),
+  DepartmentController.deleteCourse,
+);
+
+router.get(
+  "/course-registrations",
+  requireSessionRole("ADMIN", "DEPARTMENT"),
+  DepartmentController.listCourseRegistrations,
+);
+router.post(
+  "/course-registrations",
+  requireSessionRole("ADMIN", "DEPARTMENT"),
+  validateRequest(DepartmentValidation.createCourseRegistrationSchema),
+  DepartmentController.createCourseRegistration,
+);
 
 router.get("/teachers", requireSessionRole("ADMIN", "DEPARTMENT"), DepartmentController.listTeachers);
 router.post(

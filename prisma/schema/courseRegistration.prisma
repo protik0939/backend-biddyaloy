@@ -18,8 +18,8 @@ model CourseRegistration {
     departmentId String?
     department   Department? @relation(fields: [departmentId], references: [id])
 
-    programId String
-    program   Program @relation(fields: [programId], references: [id])
+    programId String?
+    program   Program? @relation(fields: [programId], references: [id])
 
     semesterId String
     semester   Semester @relation(fields: [semesterId], references: [id])
