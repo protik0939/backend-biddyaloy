@@ -21,6 +21,7 @@ model Institution {
     institutionApplications InstitutionApplication[]
     teacherJobApplications TeacherJobApplication[]
     teacherClassworks TeacherClasswork[]
+    studentClassworkSubmissions StudentClassworkSubmission[]
     teacherMarks TeacherMark[]
 
     @@map("institutions")

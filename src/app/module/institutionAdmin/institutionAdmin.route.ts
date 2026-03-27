@@ -6,6 +6,17 @@ import { InstitutionAdminValidation } from "./institutionAdmin.validation";
 
 const router = Router();
 
+router.get(
+  "/dashboard-summary",
+  requireSessionRole("ADMIN"),
+  InstitutionAdminController.getDashboardSummary,
+);
+router.patch(
+  "/profile",
+  requireSessionRole("ADMIN"),
+  validateRequest(InstitutionAdminValidation.updateProfileSchema),
+  InstitutionAdminController.updateProfile,
+);
 router.get("/faculties", requireSessionRole("ADMIN"), InstitutionAdminController.listFaculties);
 router.get("/semesters", requireSessionRole("ADMIN"), InstitutionAdminController.listSemesters);
 router.post(

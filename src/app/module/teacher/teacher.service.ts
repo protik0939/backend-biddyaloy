@@ -14,6 +14,7 @@ import {
   ITeacherExperienceRecord,
   IReviewTeacherJobApplicationPayload,
   IUpdateTeacherApplicationProfilePayload,
+  IUpdateTeacherProfilePayload,
   IUpsertSectionMarkPayload,
   IUpdateTeacherClassworkPayload,
   IUpsertSectionAttendancePayload,
@@ -166,6 +167,12 @@ async function resolveTeacherContext(userId: string) {
       id: true,
       name: true,
       email: true,
+      image: true,
+      contactNo: true,
+      presentAddress: true,
+      permanentAddress: true,
+      bloodGroup: true,
+      gender: true,
       accountStatus: true,
       role: true,
     },
@@ -286,6 +293,51 @@ const getProfileOverview = async (userId: string) => {
     applicationProfile,
     applications,
   };
+};
+
+const updateProfile = async (userId: string, payload: IUpdateTeacherProfilePayload) => {
+  const context = await resolveTeacherContext(userId);
+
+  await prisma.$transaction(async (trx) => {
+    const nextName = payload.name?.trim();
+
+    if (nextName) {
+      await trx.user.update({
+        where: { id: userId },
+        data: { name: nextName },
+      });
+    }
+
+    await trx.user.update({
+      where: { id: userId },
+      data: {
+        image: payload.image === undefined ? undefined : payload.image.trim() || null,
+        contactNo: payload.contactNo === undefined ? undefined : payload.contactNo.trim() || null,
+        presentAddress:
+          payload.presentAddress === undefined ? undefined : payload.presentAddress.trim() || null,
+        permanentAddress:
+          payload.permanentAddress === undefined
+            ? undefined
+            : payload.permanentAddress.trim() || null,
+        bloodGroup: payload.bloodGroup === undefined ? undefined : payload.bloodGroup.trim() || null,
+        gender: payload.gender === undefined ? undefined : payload.gender.trim() || null,
+      },
+    });
+
+    if (context.profile) {
+      await trx.teacherProfile.update({
+        where: {
+          id: context.profile.id,
+        },
+        data: {
+          bio: payload.bio === undefined ? undefined : payload.bio.trim() || null,
+          designation: payload.designation === undefined ? undefined : payload.designation.trim(),
+        },
+      });
+    }
+  });
+
+  return getProfileOverview(userId);
 };
 
 const getApplicationProfile = async (userId: string) => {
@@ -607,7 +659,6 @@ const listAssignedSectionsWithStudents = async (userId: string) => {
       };
       studentProfile: {
         id: string;
-        studentInitial: string;
         studentsId: string;
         bio: string | null;
         user: {
@@ -886,7 +937,6 @@ const getSectionAttendanceForDay = async (userId: string, sectionId: string, dat
       courseRegistrationId: registration.id,
       studentProfile: {
         id: registration.studentProfile.id,
-        studentInitial: registration.studentProfile.studentInitial,
         studentsId: registration.studentProfile.studentsId,
         user: registration.studentProfile.user,
       },
@@ -971,7 +1021,6 @@ const listSectionMarks = async (userId: string, sectionId: string) => {
       studentProfile: {
         select: {
           id: true,
-          studentInitial: true,
           studentsId: true,
           user: {
             select: {
@@ -1404,6 +1453,7 @@ const reviewTeacherApplication = async (
 
 export const TeacherService = {
   getProfileOverview,
+  updateProfile,
   getApplicationProfile,
   createApplicationProfile,
   updateApplicationProfile,

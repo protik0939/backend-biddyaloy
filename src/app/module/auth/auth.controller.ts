@@ -28,7 +28,20 @@ const loginUser = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getCurrentUserProfile = catchAsync(async (_req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await AuthService.getCurrentUserProfile(user.id);
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Current user fetched successfully",
+    data: result,
+  });
+});
+
 export const AuthController = {
   registerUser,
   loginUser,
+  getCurrentUserProfile,
 };

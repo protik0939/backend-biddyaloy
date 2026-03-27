@@ -98,6 +98,156 @@ const listForSuperAdmin = async (status?: InstitutionApplicationStatus) => {
   });
 };
 
+const getSuperAdminSummary = async (userId: string) => {
+  const now = new Date();
+  const dayStart = new Date(now);
+  dayStart.setHours(0, 0, 0, 0);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const sevenDaysAgo = new Date(now);
+  sevenDaysAgo.setDate(now.getDate() - 7);
+
+  const fourteenDaysAgo = new Date(now);
+  fourteenDaysAgo.setDate(now.getDate() - 14);
+
+  const [
+    currentUser,
+    totalInstitutions,
+    totalStudents,
+    totalTeachers,
+    totalStaffAccounts,
+    pendingApplications,
+    approvedToday,
+    rejectedApplications,
+    activeSessions,
+    newSignupsLast7Days,
+    newSignupsPrevious7Days,
+    newInstitutionsThisMonth,
+    newAdmissionsThisMonth,
+    pendingTeacherApprovals,
+    verifiedTeacherProfiles,
+    institutionTypeGroups,
+  ] = await Promise.all([
+    prisma.user.findUnique({
+      where: {
+        id: userId,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        image: true,
+      },
+    }),
+    prisma.institution.count(),
+    prisma.studentProfile.count(),
+    prisma.teacherProfile.count(),
+    prisma.adminProfile.count(),
+    prisma.institutionApplication.count({
+      where: {
+        status: InstitutionApplicationStatus.PENDING,
+      },
+    }),
+    prisma.institutionApplication.count({
+      where: {
+        status: InstitutionApplicationStatus.APPROVED,
+        reviewedAt: {
+          gte: dayStart,
+        },
+      },
+    }),
+    prisma.institutionApplication.count({
+      where: {
+        status: InstitutionApplicationStatus.REJECTED,
+      },
+    }),
+    prisma.session.count({
+      where: {
+        expiresAt: {
+          gt: now,
+        },
+      },
+    }),
+    prisma.user.count({
+      where: {
+        createdAt: {
+          gte: sevenDaysAgo,
+        },
+      },
+    }),
+    prisma.user.count({
+      where: {
+        createdAt: {
+          gte: fourteenDaysAgo,
+          lt: sevenDaysAgo,
+        },
+      },
+    }),
+    prisma.institution.count({
+      where: {
+        createdAt: {
+          gte: monthStart,
+        },
+      },
+    }),
+    prisma.studentProfile.count({
+      where: {
+        createdAt: {
+          gte: monthStart,
+        },
+      },
+    }),
+    prisma.teacherJobApplication.count({
+      where: {
+        status: "PENDING",
+      },
+    }),
+    prisma.teacherProfile.count(),
+    prisma.institution.groupBy({
+      by: ["type"],
+      _count: {
+        id: true,
+      },
+    }),
+  ]);
+
+  const growthBase = Math.max(newSignupsPrevious7Days, 1);
+  const weeklyGrowthPercentage = Number(
+    (((newSignupsLast7Days - newSignupsPrevious7Days) / growthBase) * 100).toFixed(2),
+  );
+
+  const institutionTypeBreakdown = institutionTypeGroups.reduce(
+    (acc, item) => {
+      const key = item.type ?? "OTHER";
+      acc[key] = item._count.id;
+      return acc;
+    },
+    {} as Record<string, number>,
+  );
+
+  return {
+    user: currentUser,
+    stats: {
+      totalInstitutions,
+      totalStudents,
+      totalTeachers,
+      totalStaffAccounts,
+      activeSessions,
+      pendingApplications,
+      approvedToday,
+      rejectedApplications,
+      newSignupsLast7Days,
+      weeklyGrowthPercentage,
+      pendingInstitutionVerifications: pendingApplications,
+      newInstitutionsThisMonth,
+      newAdmissionsThisMonth,
+      pendingTeacherApprovals,
+      verifiedTeacherProfiles,
+      institutionTypeBreakdown,
+    },
+  };
+};
+
 const review = async (
   reviewerUserId: string,
   applicationId: string,
@@ -178,5 +328,6 @@ export const InstitutionApplicationService = {
   create,
   getMyApplications,
   listForSuperAdmin,
+  getSuperAdminSummary,
   review,
 };

@@ -1,4 +1,9 @@
-import { AdminRole, UserRole } from "../../../generated/prisma/enums";
+import {
+  AccountStatus,
+  AdminRole,
+  StudentAdmissionApplicationStatus,
+  UserRole,
+} from "../../../generated/prisma/enums";
 import { auth } from "../../lib/auth";
 import { prisma } from "../../lib/prisma";
 import {
@@ -10,6 +15,8 @@ import {
   ICreateSemesterPayload,
   ICreateStudentPayload,
   ICreateTeacherPayload,
+  IListStudentAdmissionApplicationsQuery,
+  IReviewStudentAdmissionApplicationPayload,
   IUpdateBatchPayload,
   IUpdateCoursePayload,
   IUpdateCourseRegistrationPayload,
@@ -121,9 +128,27 @@ const getDepartmentProfile = async (userId: string, departmentId?: string) => {
     },
   });
 
+  const user = await prisma.user.findUnique({
+    where: {
+      id: userId,
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      image: true,
+      contactNo: true,
+      presentAddress: true,
+      permanentAddress: true,
+      bloodGroup: true,
+      gender: true,
+    },
+  });
+
   return {
     institutionId: context.institutionId,
     ...department,
+    user,
   };
 };
 
@@ -145,79 +170,68 @@ const updateDepartmentProfile = async (
     throw createHttpError(403, "Only department admins can access this resource");
   }
 
-  const normalizedFullName = payload.fullName.trim();
+  const normalizedFullName = payload.fullName?.trim();
   const normalizedShortName = payload.shortName?.trim() || null;
   const normalizedDescription = payload.description?.trim() || null;
+  const hasDepartmentMutation =
+    Boolean(payload.fullName || payload.shortName || payload.description) ||
+    Boolean(payload.departmentId);
 
   const savedDepartment = await prisma.$transaction(async (trx) => {
-    const departmentData = {
-      fullName: normalizedFullName,
-      shortName: normalizedShortName,
-      description: normalizedDescription,
-    };
+    let nextDepartment:
+      | {
+          id: string;
+          fullName: string;
+          shortName: string | null;
+          description: string | null;
+          updatedAt: Date;
+        }
+      | null = null;
 
-    const createDepartmentForSingleFaculty = async () => {
-      const faculties = await trx.faculty.findMany({
-        where: {
-          institutionId: adminProfile.institutionId,
-        },
-        select: {
-          id: true,
-        },
-        take: 2,
-        orderBy: {
-          createdAt: "asc",
-        },
-      });
-
-      if (faculties.length === 0) {
-        throw createHttpError(
-          404,
-          "No faculty found for this institution. Ask faculty admin to create a faculty first",
-        );
+    if (hasDepartmentMutation) {
+      if (!normalizedFullName) {
+        throw createHttpError(400, "Department full name is required when updating department details");
       }
 
-      if (faculties.length > 1) {
-        throw createHttpError(
-          400,
-          "Multiple faculties found. Ask faculty admin to create department under a specific faculty",
-        );
-      }
+      const departmentData = {
+        fullName: normalizedFullName,
+        shortName: normalizedShortName,
+        description: normalizedDescription,
+      };
 
-      return trx.department.create({
-        data: {
-          ...departmentData,
-          facultyId: faculties[0].id,
-        },
-        select: {
-          id: true,
-          fullName: true,
-          shortName: true,
-          description: true,
-          updatedAt: true,
-        },
-      });
-    };
-
-    if (payload.departmentId) {
-      const departmentById = await trx.department.findFirst({
-        where: {
-          id: payload.departmentId,
-          faculty: {
+      const createDepartmentForSingleFaculty = async () => {
+        const faculties = await trx.faculty.findMany({
+          where: {
             institutionId: adminProfile.institutionId,
           },
-        },
-        select: {
-          id: true,
-        },
-      });
-
-      if (departmentById) {
-        return trx.department.update({
-          where: {
-            id: departmentById.id,
+          select: {
+            id: true,
           },
-          data: departmentData,
+          take: 2,
+          orderBy: {
+            createdAt: "asc",
+          },
+        });
+
+        if (faculties.length === 0) {
+          throw createHttpError(
+            404,
+            "No faculty found for this institution. Ask faculty admin to create a faculty first",
+          );
+        }
+
+        if (faculties.length > 1) {
+          throw createHttpError(
+            400,
+            "Multiple faculties found. Ask faculty admin to create department under a specific faculty",
+          );
+        }
+
+        return trx.department.create({
+          data: {
+            ...departmentData,
+            facultyId: faculties[0].id,
+          },
           select: {
             id: true,
             fullName: true,
@@ -226,51 +240,133 @@ const updateDepartmentProfile = async (
             updatedAt: true,
           },
         });
-      }
+      };
 
-      const departmentCount = await trx.department.count({
-        where: {
-          faculty: {
-            institutionId: adminProfile.institutionId,
+      if (payload.departmentId) {
+        const departmentById = await trx.department.findFirst({
+          where: {
+            id: payload.departmentId,
+            faculty: {
+              institutionId: adminProfile.institutionId,
+            },
           },
-        },
-      });
+          select: {
+            id: true,
+          },
+        });
 
-      if (departmentCount > 0) {
-        throw createHttpError(404, "Department not found for this institution");
+        if (departmentById) {
+          nextDepartment = await trx.department.update({
+            where: {
+              id: departmentById.id,
+            },
+            data: departmentData,
+            select: {
+              id: true,
+              fullName: true,
+              shortName: true,
+              description: true,
+              updatedAt: true,
+            },
+          });
+        } else {
+          const departmentCount = await trx.department.count({
+            where: {
+              faculty: {
+                institutionId: adminProfile.institutionId,
+              },
+            },
+          });
+
+          if (departmentCount > 0) {
+            throw createHttpError(404, "Department not found for this institution");
+          }
+
+          nextDepartment = await createDepartmentForSingleFaculty();
+        }
+      } else {
+        const departments = await trx.department.findMany({
+          where: {
+            faculty: {
+              institutionId: adminProfile.institutionId,
+            },
+          },
+          select: {
+            id: true,
+          },
+          take: 2,
+          orderBy: {
+            createdAt: "asc",
+          },
+        });
+
+        if (departments.length > 1) {
+          throw createHttpError(400, "Multiple departments found. Please provide departmentId");
+        }
+
+        if (departments.length === 0) {
+          nextDepartment = await createDepartmentForSingleFaculty();
+        } else {
+          nextDepartment = await trx.department.update({
+            where: {
+              id: departments[0].id,
+            },
+            data: departmentData,
+            select: {
+              id: true,
+              fullName: true,
+              shortName: true,
+              description: true,
+              updatedAt: true,
+            },
+          });
+        }
       }
-
-      return createDepartmentForSingleFaculty();
     }
 
-    const departments = await trx.department.findMany({
+    const nextName = payload.name?.trim();
+    if (nextName) {
+      await trx.user.update({
+        where: {
+          id: userId,
+        },
+        data: {
+          name: nextName,
+        },
+      });
+    }
+
+    await trx.user.update({
+      where: {
+        id: userId,
+      },
+      data: {
+        image: payload.image === undefined ? undefined : payload.image.trim() || null,
+        contactNo: payload.contactNo === undefined ? undefined : payload.contactNo.trim() || null,
+        presentAddress:
+          payload.presentAddress === undefined ? undefined : payload.presentAddress.trim() || null,
+        permanentAddress:
+          payload.permanentAddress === undefined
+            ? undefined
+            : payload.permanentAddress.trim() || null,
+        bloodGroup: payload.bloodGroup === undefined ? undefined : payload.bloodGroup.trim() || null,
+        gender: payload.gender === undefined ? undefined : payload.gender.trim() || null,
+      },
+    });
+
+    if (nextDepartment) {
+      return nextDepartment;
+    }
+
+    return trx.department.findFirst({
       where: {
         faculty: {
           institutionId: adminProfile.institutionId,
         },
       },
-      select: {
-        id: true,
-      },
-      take: 2,
       orderBy: {
-        createdAt: "asc",
+        createdAt: "desc",
       },
-    });
-
-    if (departments.length > 1) {
-      throw createHttpError(400, "Multiple departments found. Please provide departmentId");
-    }
-
-    if (departments.length === 0) {
-      return createDepartmentForSingleFaculty();
-    }
-
-    return trx.department.update({
-      where: {
-        id: departments[0].id,
-      },
-      data: departmentData,
       select: {
         id: true,
         fullName: true,
@@ -281,7 +377,22 @@ const updateDepartmentProfile = async (
     });
   });
 
-  return savedDepartment;
+  const user = await prisma.user.findUnique({
+    where: {
+      id: userId,
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      image: true,
+    },
+  });
+
+  return {
+    ...savedDepartment,
+    user,
+  };
 };
 
 const listSemesters = async (userId: string) => {
@@ -857,7 +968,6 @@ const listCourseRegistrations = async (userId: string, departmentId?: string) =>
       studentProfile: {
         select: {
           id: true,
-          studentInitial: true,
           studentsId: true,
           user: {
             select: {
@@ -1259,7 +1369,6 @@ const createCourseRegistration = async (
       studentProfile: {
         select: {
           id: true,
-          studentInitial: true,
           studentsId: true,
           user: {
             select: {
@@ -1497,7 +1606,6 @@ const updateCourseRegistration = async (
       studentProfile: {
         select: {
           id: true,
-          studentInitial: true,
           studentsId: true,
           user: {
             select: {
@@ -1754,7 +1862,6 @@ const createStudent = async (userId: string, payload: ICreateStudentPayload) => 
 
   const profile = await prisma.studentProfile.create({
     data: {
-      studentInitial: payload.studentInitial.trim(),
       studentsId: payload.studentsId.trim(),
       bio: payload.bio?.trim() || null,
       institutionId: context.institutionId,
@@ -1838,6 +1945,337 @@ const updateStudent = async (
   return result;
 };
 
+const getDashboardSummary = async (userId: string) => {
+  const context = await resolveDepartmentContext(userId);
+
+  const [user, institution, department, stats] = await Promise.all([
+    prisma.user.findUnique({
+      where: {
+        id: userId,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        image: true,
+      },
+    }),
+    prisma.institution.findUnique({
+      where: {
+        id: context.institutionId,
+      },
+      select: {
+        id: true,
+        name: true,
+        shortName: true,
+        institutionLogo: true,
+      },
+    }),
+    prisma.department.findUnique({
+      where: {
+        id: context.departmentId,
+      },
+      select: {
+        id: true,
+        fullName: true,
+        shortName: true,
+        description: true,
+      },
+    }),
+    Promise.all([
+      prisma.semester.count({
+        where: {
+          institutionId: context.institutionId,
+        },
+      }),
+      prisma.section.count({
+        where: {
+          institutionId: context.institutionId,
+          departmentId: context.departmentId,
+        },
+      }),
+      prisma.teacherProfile.count({
+        where: {
+          institutionId: context.institutionId,
+          departmentId: context.departmentId,
+        },
+      }),
+      prisma.course.count({
+        where: {
+          institutionId: context.institutionId,
+          departmentId: context.departmentId,
+        },
+      }),
+      prisma.studentProfile.count({
+        where: {
+          institutionId: context.institutionId,
+          departmentId: context.departmentId,
+        },
+      }),
+      prisma.teacherJobApplication.count({
+        where: {
+          institutionId: context.institutionId,
+          departmentId: context.departmentId,
+          status: "PENDING",
+        },
+      }),
+      prisma.studentAdmissionApplication.count({
+        where: {
+          posting: {
+            institutionId: context.institutionId,
+            departmentId: context.departmentId,
+          },
+          status: "PENDING",
+        },
+      }),
+    ]),
+  ]);
+
+  const [totalSemesters, totalSections, totalTeachers, totalCourses, totalStudents, pendingTeacherApplications, pendingStudentApplications] =
+    stats;
+
+  return {
+    user,
+    institution,
+    department,
+    stats: {
+      totalSemesters,
+      totalSections,
+      totalTeachers,
+      totalCourses,
+      totalStudents,
+      pendingTeacherApplications,
+      pendingStudentApplications,
+    },
+  };
+};
+
+const listStudentAdmissionApplications = async (
+  userId: string,
+  status?: IListStudentAdmissionApplicationsQuery["status"],
+) => {
+  const context = await resolveDepartmentContext(userId);
+
+  return prisma.studentAdmissionApplication.findMany({
+    where: {
+      status,
+      posting: {
+        institutionId: context.institutionId,
+        departmentId: context.departmentId,
+      },
+    },
+    include: {
+      posting: {
+        select: {
+          id: true,
+          title: true,
+          location: true,
+          summary: true,
+          institutionId: true,
+          departmentId: true,
+        },
+      },
+      studentUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          accountStatus: true,
+          studentApplicationProfile: {
+            select: {
+              id: true,
+              headline: true,
+              about: true,
+              documentUrls: true,
+              academicRecords: true,
+              isComplete: true,
+              updatedAt: true,
+            },
+          },
+        },
+      },
+      reviewerUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+      studentProfile: {
+        select: {
+          id: true,
+          studentsId: true,
+          bio: true,
+          departmentId: true,
+          institutionId: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+};
+
+const reviewStudentAdmissionApplication = async (
+  reviewerUserId: string,
+  applicationId: string,
+  payload: IReviewStudentAdmissionApplicationPayload,
+) => {
+  const context = await resolveDepartmentContext(reviewerUserId);
+
+  const application = await prisma.studentAdmissionApplication.findFirst({
+    where: {
+      id: applicationId,
+      posting: {
+        institutionId: context.institutionId,
+        departmentId: context.departmentId,
+      },
+    },
+    include: {
+      posting: {
+        select: {
+          id: true,
+          institutionId: true,
+          departmentId: true,
+        },
+      },
+    },
+  });
+
+  if (!application) {
+    throw createHttpError(404, "Student admission application not found");
+  }
+
+  if (
+    application.status === StudentAdmissionApplicationStatus.APPROVED ||
+    application.status === StudentAdmissionApplicationStatus.REJECTED
+  ) {
+    throw createHttpError(400, "Application has already been reviewed");
+  }
+
+  if (payload.status === StudentAdmissionApplicationStatus.REJECTED) {
+    return prisma.studentAdmissionApplication.update({
+      where: {
+        id: applicationId,
+      },
+      data: {
+        status: StudentAdmissionApplicationStatus.REJECTED,
+        institutionResponse: payload.rejectionReason?.trim() || null,
+        reviewerUserId,
+        reviewedAt: new Date(),
+      },
+    });
+  }
+
+  if (payload.status === StudentAdmissionApplicationStatus.SHORTLISTED) {
+    return prisma.studentAdmissionApplication.update({
+      where: {
+        id: applicationId,
+      },
+      data: {
+        status: StudentAdmissionApplicationStatus.SHORTLISTED,
+        institutionResponse: payload.responseMessage?.trim() || null,
+        reviewerUserId,
+        reviewedAt: new Date(),
+      },
+    });
+  }
+
+  const studentsId = payload.studentsId?.trim();
+
+  if (!studentsId) {
+    throw createHttpError(400, "studentsId is required for approval");
+  }
+
+  return prisma.$transaction(async (trx) => {
+    const existingProfile = await trx.studentProfile.findFirst({
+      where: {
+        userId: application.studentUserId,
+      },
+      select: {
+        id: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    let studentProfileId = existingProfile?.id;
+
+    if (studentProfileId) {
+      await trx.studentProfile.update({
+        where: {
+          id: studentProfileId,
+        },
+        data: {
+          studentsId,
+          bio: payload.bio?.trim() || undefined,
+          institutionId: context.institutionId,
+          departmentId: context.departmentId,
+        },
+      });
+    } else {
+      const createdProfile = await trx.studentProfile.create({
+        data: {
+          studentsId,
+          bio: payload.bio?.trim() || null,
+          userId: application.studentUserId,
+          institutionId: context.institutionId,
+          departmentId: context.departmentId,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      studentProfileId = createdProfile.id;
+    }
+
+    await trx.user.update({
+      where: {
+        id: application.studentUserId,
+      },
+      data: {
+        accountStatus: AccountStatus.ACTIVE,
+      },
+    });
+
+    return trx.studentAdmissionApplication.update({
+      where: {
+        id: applicationId,
+      },
+      data: {
+        status: StudentAdmissionApplicationStatus.APPROVED,
+        institutionResponse: payload.responseMessage?.trim() || null,
+        reviewerUserId,
+        reviewedAt: new Date(),
+        studentProfileId,
+      },
+      include: {
+        studentUser: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            accountStatus: true,
+          },
+        },
+        posting: {
+          select: {
+            id: true,
+            title: true,
+            location: true,
+            summary: true,
+            institutionId: true,
+            departmentId: true,
+          },
+        },
+      },
+    });
+  });
+};
+
 export const DepartmentService = {
   getDepartmentProfile,
   updateDepartmentProfile,
@@ -1871,4 +2309,7 @@ export const DepartmentService = {
   listStudents,
   createStudent,
   updateStudent,
+  getDashboardSummary,
+  listStudentAdmissionApplications,
+  reviewStudentAdmissionApplication,
 };

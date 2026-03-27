@@ -14,12 +14,27 @@ const passwordSchema = z
 
 export const DepartmentValidation = {
   updateDepartmentProfileSchema: z.object({
-    body: z.object({
-      fullName: z.string("Full name is required").trim().min(2).max(120),
-      shortName: z.string("Short name must be a string").trim().min(2).max(30).optional(),
-      description: z.string("Description must be a string").trim().min(3).max(500).optional(),
-      departmentId: uuidSchema.optional(),
-    }),
+    body: z
+      .object({
+        fullName: z.string("Full name must be a string").trim().min(2).max(120).optional(),
+        shortName: z.string("Short name must be a string").trim().min(2).max(30).optional(),
+        description: z.string("Description must be a string").trim().min(3).max(500).optional(),
+        departmentId: uuidSchema.optional(),
+        name: z.string("name must be a string").trim().min(2).max(120).optional(),
+        image: z.url("image must be a valid URL").trim().optional(),
+        contactNo: z.string("contactNo must be a string").trim().max(30).optional(),
+        presentAddress: z.string("presentAddress must be a string").trim().max(300).optional(),
+        permanentAddress: z
+          .string("permanentAddress must be a string")
+          .trim()
+          .max(300)
+          .optional(),
+        bloodGroup: z.string("bloodGroup must be a string").trim().max(10).optional(),
+        gender: z.string("gender must be a string").trim().max(20).optional(),
+      })
+      .refine((value) => Object.keys(value).length > 0, {
+        message: "At least one field is required",
+      }),
   }),
 
   createSemesterSchema: z.object({
@@ -247,7 +262,6 @@ export const DepartmentValidation = {
       name: z.string("Name is required").trim().min(2).max(60),
       email: z.email("Please provide a valid email").toLowerCase().trim(),
       password: passwordSchema,
-      studentInitial: z.string("Student initial is required").trim().min(2).max(20),
       studentsId: z.string("Student id is required").trim().min(2).max(50),
       bio: z.string("Bio must be a string").trim().max(500).optional(),
       departmentId: uuidSchema.optional(),
@@ -266,5 +280,39 @@ export const DepartmentValidation = {
       .refine((value) => Object.keys(value).length > 0, {
         message: "At least one field is required",
       }),
+  }),
+
+  listStudentAdmissionApplicationsSchema: z.object({
+    query: z.object({
+      status: z.enum(["PENDING", "SHORTLISTED", "APPROVED", "REJECTED"]).optional(),
+    }),
+  }),
+
+  reviewStudentAdmissionApplicationSchema: z.object({
+    params: z.object({
+      applicationId: uuidSchema,
+    }),
+    body: z
+      .object({
+        status: z.enum(["SHORTLISTED", "APPROVED", "REJECTED"]),
+        responseMessage: z.string("responseMessage must be a string").trim().max(1200).optional(),
+        rejectionReason: z.string("rejectionReason must be a string").trim().max(1200).optional(),
+        studentsId: z.string("studentsId must be a string").trim().min(2).max(50).optional(),
+        bio: z.string("bio must be a string").trim().max(1200).optional(),
+      })
+      .refine(
+        (value) => value.status === "REJECTED" ? Boolean(value.rejectionReason?.trim()) : true,
+        {
+          path: ["rejectionReason"],
+          message: "rejectionReason is required when rejecting",
+        },
+      )
+      .refine(
+        (value) => value.status === "APPROVED" ? Boolean(value.studentsId?.trim()) : true,
+        {
+          path: ["studentsId"],
+          message: "studentsId is required when approving",
+        },
+      ),
   }),
 };

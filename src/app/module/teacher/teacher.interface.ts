@@ -41,6 +41,18 @@ export interface IUpdateTeacherApplicationProfilePayload {
   experiences?: ITeacherExperienceRecord[];
 }
 
+export interface IUpdateTeacherProfilePayload {
+  name?: string;
+  image?: string;
+  bio?: string;
+  designation?: string;
+  contactNo?: string;
+  presentAddress?: string;
+  permanentAddress?: string;
+  bloodGroup?: string;
+  gender?: string;
+}
+
 export interface IListTeacherClassworksQuery {
   sectionId?: string;
   type?: TeacherClassworkType;

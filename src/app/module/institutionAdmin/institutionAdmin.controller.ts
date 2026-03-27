@@ -30,6 +30,30 @@ const listFaculties = catchAsync(async (_req: Request, res: Response) => {
   });
 });
 
+const getDashboardSummary = catchAsync(async (_req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await InstitutionAdminService.getDashboardSummary(user.id);
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Dashboard summary fetched successfully",
+    data: result,
+  });
+});
+
+const updateProfile = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await InstitutionAdminService.updateProfile(user.id, req.body);
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Profile updated successfully",
+    data: result,
+  });
+});
+
 const listSemesters = catchAsync(async (_req: Request, res: Response) => {
   const user = res.locals.authUser as { id: string };
   const result = await InstitutionAdminService.listSemesters(user.id);
@@ -86,6 +110,8 @@ const deleteSemester = catchAsync(async (req: Request, res: Response) => {
 });
 
 export const InstitutionAdminController = {
+  getDashboardSummary,
+  updateProfile,
   createSubAdminAccount,
   listFaculties,
   listSemesters,

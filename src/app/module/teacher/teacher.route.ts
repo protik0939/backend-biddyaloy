@@ -8,6 +8,13 @@ const router = Router();
 
 router.get("/profile", requireSessionRole("TEACHER"), TeacherController.getProfileOverview);
 
+router.patch(
+  "/profile",
+  requireSessionRole("TEACHER"),
+  validateRequest(TeacherValidation.updateProfileSchema),
+  TeacherController.updateProfile,
+);
+
 router.get(
   "/application-profile",
   requireSessionRole("TEACHER"),

@@ -20,6 +20,7 @@ model Department {
     sectionTeacherAssignments SectionCourseTeacherAssignment[]
     teacherJobApplications TeacherJobApplication[]
     teacherClassworks TeacherClasswork[]
+    studentClassworkSubmissions StudentClassworkSubmission[]
     teacherMarks TeacherMark[]
 
     @@map("departments")

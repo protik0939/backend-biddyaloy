@@ -25,6 +25,12 @@ router.get(
   InstitutionApplicationController.listForSuperAdmin,
 );
 
+router.get(
+  "/superadmin-summary",
+  requireSessionRole("SUPERADMIN"),
+  InstitutionApplicationController.getSuperAdminSummary,
+);
+
 router.patch(
   "/superadmin/:applicationId/review",
   requireSessionRole("SUPERADMIN"),

@@ -1,10 +1,17 @@
-import { AccountStatus } from "../../../generated/prisma/enums";
+import { AccountStatus, StudentAdmissionApplicationStatus } from "../../../generated/prisma/enums";
 
 export interface IUpdateDepartmentProfilePayload {
-  fullName: string;
+  fullName?: string;
   shortName?: string;
   description?: string;
   departmentId?: string;
+  image?: string;
+  name?: string;
+  contactNo?: string;
+  presentAddress?: string;
+  permanentAddress?: string;
+  bloodGroup?: string;
+  gender?: string;
 }
 
 export interface ICreateSemesterPayload {
@@ -101,7 +108,6 @@ export interface ICreateStudentPayload {
   name: string;
   email: string;
   password: string;
-  studentInitial: string;
   studentsId: string;
   bio?: string;
   departmentId?: string;
@@ -137,4 +143,16 @@ export interface IUpsertSectionCourseTeacherAssignmentPayload {
   teacherProfileId: string;
   semesterId: string;
   departmentId?: string;
+}
+
+export interface IListStudentAdmissionApplicationsQuery {
+  status?: StudentAdmissionApplicationStatus;
+}
+
+export interface IReviewStudentAdmissionApplicationPayload {
+  status: StudentAdmissionApplicationStatus;
+  responseMessage?: string;
+  rejectionReason?: string;
+  studentsId?: string;
+  bio?: string;
 }

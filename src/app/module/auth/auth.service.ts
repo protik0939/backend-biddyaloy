@@ -107,7 +107,117 @@ const loginUser = async (payload: ILoginUser) => {
   };
 };
 
+const getCurrentUserProfile = async (userId: string) => {
+  const userRecord = await prisma.user.findUnique({
+    where: {
+      id: userId,
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      image: true,
+      role: true,
+      accountStatus: true,
+    },
+  });
+
+  if (!userRecord) {
+    throw new Error("User account not found");
+  }
+
+  let effectiveRole = userRecord.role;
+  let institution:
+    | {
+        id: string;
+        name: string;
+        shortName: string | null;
+        institutionLogo: string | null;
+      }
+    | null = null;
+
+  if (userRecord.role === "ADMIN") {
+    const adminProfile = await prisma.adminProfile.findUnique({
+      where: {
+        userId,
+      },
+      select: {
+        role: true,
+        institution: {
+          select: {
+            id: true,
+            name: true,
+            shortName: true,
+            institutionLogo: true,
+          },
+        },
+      },
+    });
+
+    effectiveRole = resolveUiRoleFromAdminRole(adminProfile?.role);
+    institution = adminProfile?.institution ?? null;
+  }
+
+  if (userRecord.role === "TEACHER") {
+    const teacherProfile = await prisma.teacherProfile.findFirst({
+      where: {
+        userId,
+      },
+      select: {
+        institution: {
+          select: {
+            id: true,
+            name: true,
+            shortName: true,
+            institutionLogo: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    institution = teacherProfile?.institution ?? null;
+  }
+
+  if (userRecord.role === "STUDENT") {
+    const studentProfile = await prisma.studentProfile.findFirst({
+      where: {
+        userId,
+      },
+      select: {
+        institution: {
+          select: {
+            id: true,
+            name: true,
+            shortName: true,
+            institutionLogo: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    institution = studentProfile?.institution ?? null;
+  }
+
+  return {
+    id: userRecord.id,
+    name: userRecord.name,
+    email: userRecord.email,
+    image: userRecord.image,
+    role: effectiveRole,
+    baseRole: userRecord.role,
+    accountStatus: userRecord.accountStatus,
+    institution,
+  };
+};
+
 export const AuthService = {
   registerUser,
   loginUser,
+  getCurrentUserProfile,
 };

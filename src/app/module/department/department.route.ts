@@ -7,6 +7,11 @@ import { DepartmentValidation } from "./department.validation";
 const router = Router();
 
 router.get("/profile", requireSessionRole("ADMIN", "DEPARTMENT"), DepartmentController.getDepartmentProfile);
+router.get(
+  "/dashboard-summary",
+  requireSessionRole("ADMIN", "DEPARTMENT"),
+  DepartmentController.getDashboardSummary,
+);
 router.patch(
   "/profile",
   requireSessionRole("ADMIN", "DEPARTMENT"),
@@ -163,6 +168,20 @@ router.patch(
   requireSessionRole("ADMIN", "DEPARTMENT"),
   validateRequest(DepartmentValidation.updateStudentSchema),
   DepartmentController.updateStudent,
+);
+
+router.get(
+  "/student-applications",
+  requireSessionRole("ADMIN", "DEPARTMENT"),
+  validateRequest(DepartmentValidation.listStudentAdmissionApplicationsSchema),
+  DepartmentController.listStudentAdmissionApplications,
+);
+
+router.patch(
+  "/student-applications/:applicationId/review",
+  requireSessionRole("ADMIN", "DEPARTMENT"),
+  validateRequest(DepartmentValidation.reviewStudentAdmissionApplicationSchema),
+  DepartmentController.reviewStudentAdmissionApplication,
 );
 
 export const DepartmentRouter = router;

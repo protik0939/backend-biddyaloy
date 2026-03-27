@@ -4,6 +4,7 @@ import { prisma } from "../../lib/prisma";
 import {
   ICreateInstitutionSemesterPayload,
   ICreateInstitutionSubAdminPayload,
+  IUpdateInstitutionAdminProfilePayload,
   IUpdateInstitutionSemesterPayload,
 } from "./institutionAdmin.interface";
 
@@ -65,6 +66,144 @@ const listSemesters = async (creatorUserId: string) => {
       startDate: "desc",
     },
   });
+};
+
+const getDashboardSummary = async (creatorUserId: string) => {
+  const context = await resolveInstitutionAdminContext(creatorUserId);
+
+  const [user, institution, stats] = await Promise.all([
+    prisma.user.findUnique({
+      where: {
+        id: creatorUserId,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        image: true,
+        contactNo: true,
+        presentAddress: true,
+        permanentAddress: true,
+        bloodGroup: true,
+        gender: true,
+      },
+    }),
+    prisma.institution.findUnique({
+      where: {
+        id: context.institutionId,
+      },
+      select: {
+        id: true,
+        name: true,
+        shortName: true,
+        institutionLogo: true,
+        type: true,
+      },
+    }),
+    Promise.all([
+      prisma.faculty.count({
+        where: {
+          institutionId: context.institutionId,
+        },
+      }),
+      prisma.department.count({
+        where: {
+          faculty: {
+            institutionId: context.institutionId,
+          },
+        },
+      }),
+      prisma.semester.count({
+        where: {
+          institutionId: context.institutionId,
+        },
+      }),
+      prisma.teacherProfile.count({
+        where: {
+          institutionId: context.institutionId,
+        },
+      }),
+      prisma.studentProfile.count({
+        where: {
+          institutionId: context.institutionId,
+        },
+      }),
+      prisma.teacherJobApplication.count({
+        where: {
+          institutionId: context.institutionId,
+          status: "PENDING",
+        },
+      }),
+      prisma.studentAdmissionApplication.count({
+        where: {
+          posting: {
+            institutionId: context.institutionId,
+          },
+          status: "PENDING",
+        },
+      }),
+    ]),
+  ]);
+
+  const [
+    totalFaculties,
+    totalDepartments,
+    totalSemesters,
+    totalTeachers,
+    totalStudents,
+    pendingTeacherApplications,
+    pendingStudentApplications,
+  ] = stats;
+
+  return {
+    user,
+    institution,
+    stats: {
+      totalFaculties,
+      totalDepartments,
+      totalSemesters,
+      totalTeachers,
+      totalStudents,
+      pendingTeacherApplications,
+      pendingStudentApplications,
+    },
+  };
+};
+
+const updateProfile = async (
+  creatorUserId: string,
+  payload: IUpdateInstitutionAdminProfilePayload,
+) => {
+  await resolveInstitutionAdminContext(creatorUserId);
+
+  const nextName = payload.name?.trim();
+
+  if (nextName) {
+    await prisma.user.update({
+      where: { id: creatorUserId },
+      data: {
+        name: nextName,
+      },
+    });
+  }
+
+  await prisma.user.update({
+    where: { id: creatorUserId },
+    data: {
+      image: payload.image === undefined ? undefined : payload.image.trim() || null,
+      contactNo: payload.contactNo === undefined ? undefined : payload.contactNo.trim() || null,
+      presentAddress:
+        payload.presentAddress === undefined ? undefined : payload.presentAddress.trim() || null,
+      permanentAddress:
+        payload.permanentAddress === undefined
+          ? undefined
+          : payload.permanentAddress.trim() || null,
+      bloodGroup: payload.bloodGroup === undefined ? undefined : payload.bloodGroup.trim() || null,
+      gender: payload.gender === undefined ? undefined : payload.gender.trim() || null,
+    },
+  });
+
+  return getDashboardSummary(creatorUserId);
 };
 
 const createSemester = async (
@@ -420,6 +559,8 @@ const createSubAdminAccount = async (
 };
 
 export const InstitutionAdminService = {
+  getDashboardSummary,
+  updateProfile,
   listSemesters,
   createSemester,
   updateSemester,

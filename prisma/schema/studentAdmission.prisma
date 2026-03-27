@@ -1,0 +1,48 @@
+model StudentApplicationProfile {
+    id String @id @default(uuid())
+
+    studentUserId String @unique
+    studentUser User @relation(fields: [studentUserId], references: [id])
+
+    headline String
+    about String
+    documentUrls String[]
+    academicRecords Json
+
+    isComplete Boolean @default(false)
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@map("student_application_profiles")
+}
+
+model StudentAdmissionApplication {
+    id String @id @default(uuid())
+
+    coverLetter String?
+    status StudentAdmissionApplicationStatus @default(PENDING)
+    institutionResponse String?
+    reviewedAt DateTime?
+    appliedAt DateTime @default(now())
+
+    postingId String
+    posting StudentAdmissionPost @relation(fields: [postingId], references: [id])
+
+    studentUserId String
+    studentUser User @relation("StudentAdmissionApplicant", fields: [studentUserId], references: [id])
+
+    reviewerUserId String?
+    reviewerUser User? @relation("StudentAdmissionReviewer", fields: [reviewerUserId], references: [id])
+
+    studentProfileId String?
+    studentProfile StudentProfile? @relation(fields: [studentProfileId], references: [id])
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@unique([postingId, studentUserId])
+    @@index([studentUserId])
+    @@index([status])
+    @@map("student_admission_applications")
+}

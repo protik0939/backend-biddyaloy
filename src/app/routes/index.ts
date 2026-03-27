@@ -6,6 +6,7 @@ import { InstituteRoutes } from "../module/institute/institute.route";
 import { InstitutionAdminRouter } from "../module/institutionAdmin/institutionAdmin.route";
 import { InstitutionApplicationRouter } from "../module/institutionApplication/institutionApplication.route";
 import { PostingRouter } from "../module/posting/posting.route";
+import { StudentRouter } from "../module/student/student.route";
 import { TeacherRouter } from "../module/teacher/teacher.route";
 
 const router = Router();
@@ -18,5 +19,6 @@ router.use("/institution-applications", InstitutionApplicationRouter);
 router.use("/institution-admin", InstitutionAdminRouter);
 router.use("/postings", PostingRouter);
 router.use("/teacher", TeacherRouter);
+router.use("/student", StudentRouter);
 
 export const IndexRouters = router;

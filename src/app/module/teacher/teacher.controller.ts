@@ -19,6 +19,18 @@ const getProfileOverview = catchAsync(async (_req: Request, res: Response) => {
   });
 });
 
+const updateProfile = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await TeacherService.updateProfile(user.id, req.body);
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Teacher profile updated successfully",
+    data: result,
+  });
+});
+
 const getApplicationProfile = catchAsync(async (_req: Request, res: Response) => {
   const user = res.locals.authUser as { id: string };
   const result = await TeacherService.getApplicationProfile(user.id);
@@ -258,6 +270,7 @@ const reviewTeacherApplication = catchAsync(async (req: Request, res: Response) 
 
 export const TeacherController = {
   getProfileOverview,
+  updateProfile,
   getApplicationProfile,
   createApplicationProfile,
   updateApplicationProfile,

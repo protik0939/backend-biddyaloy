@@ -43,6 +43,16 @@ const listForSuperAdmin = async (req: Request, res: Response) => {
   });
 };
 
+const getSuperAdminSummary = async (_req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await InstitutionApplicationService.getSuperAdminSummary(user.id);
+
+  res.status(200).json({
+    success: true,
+    data: result,
+  });
+};
+
 const review = async (req: Request, res: Response) => {
   const user = res.locals.authUser as { id: string };
   const applicationIdParam = req.params.applicationId;
@@ -70,5 +80,6 @@ export const InstitutionApplicationController = {
   create,
   myApplications,
   listForSuperAdmin,
+  getSuperAdminSummary,
   review,
 };

@@ -90,3 +90,10 @@ enum TeacherClassworkType {
     QUIZ
     NOTICE
 }
+
+enum StudentAdmissionApplicationStatus {
+    PENDING
+    SHORTLISTED
+    APPROVED
+    REJECTED
+}

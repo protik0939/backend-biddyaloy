@@ -76,6 +76,24 @@ const updateTeacherApplicationProfileSchema = z.object({
     }),
 });
 
+const updateProfileSchema = z.object({
+  body: z
+    .object({
+      name: z.string("name must be a string").trim().min(2).max(120).optional(),
+      image: z.url("image must be a valid URL").trim().optional(),
+      bio: z.string("bio must be a string").trim().max(1200).optional(),
+      designation: z.string("designation must be a string").trim().min(2).max(80).optional(),
+      contactNo: z.string("contactNo must be a string").trim().max(30).optional(),
+      presentAddress: z.string("presentAddress must be a string").trim().max(300).optional(),
+      permanentAddress: z.string("permanentAddress must be a string").trim().max(300).optional(),
+      bloodGroup: z.string("bloodGroup must be a string").trim().max(10).optional(),
+      gender: z.string("gender must be a string").trim().max(20).optional(),
+    })
+    .refine((value) => Object.keys(value).length > 0, {
+      message: "At least one field is required",
+    }),
+});
+
 const listClassworksSchema = z.object({
   query: z.object({
     sectionId: uuidSchema.optional(),
@@ -235,6 +253,7 @@ const reviewTeacherJobApplicationSchema = z.object({
 export const TeacherValidation = {
   createTeacherApplicationProfileSchema,
   updateTeacherApplicationProfileSchema,
+  updateProfileSchema,
   createJobApplicationSchema,
   listClassworksSchema,
   createClassworkSchema,

@@ -25,3 +25,13 @@ export interface IUpdateInstitutionSemesterPayload {
   startDate?: string;
   endDate?: string;
 }
+
+export interface IUpdateInstitutionAdminProfilePayload {
+  name?: string;
+  image?: string;
+  contactNo?: string;
+  presentAddress?: string;
+  permanentAddress?: string;
+  bloodGroup?: string;
+  gender?: string;
+}

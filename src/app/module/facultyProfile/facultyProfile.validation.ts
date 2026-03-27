@@ -60,10 +60,19 @@ export const FacultyProfileValidation = {
           .min(3, "Description must be at least 3 characters long")
           .max(500, "Description must not exceed 500 characters")
           .optional(),
+        image: z.url("image must be a valid URL").trim().optional(),
+        contactNo: z.string("contactNo must be a string").trim().max(30).optional(),
+        presentAddress: z.string("presentAddress must be a string").trim().max(300).optional(),
+        permanentAddress: z
+          .string("permanentAddress must be a string")
+          .trim()
+          .max(300)
+          .optional(),
+        bloodGroup: z.string("bloodGroup must be a string").trim().max(10).optional(),
+        gender: z.string("gender must be a string").trim().max(20).optional(),
       })
-      .refine((value) => Boolean(value.name || value.fullName), {
-        message: "Either name or fullName is required",
-        path: ["name"],
+      .refine((value) => Object.keys(value).length > 0, {
+        message: "At least one field is required",
       }),
   }),
 };

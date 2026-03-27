@@ -52,12 +52,43 @@ model TeacherClasswork {
     departmentId String?
     department Department? @relation(fields: [departmentId], references: [id])
 
+    submissions StudentClassworkSubmission[]
+
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
 
     @@index([teacherProfileId, createdAt])
     @@index([sectionId, type])
     @@map("teacher_classworks")
+}
+
+model StudentClassworkSubmission {
+    id String @id @default(uuid())
+
+    classworkId String
+    classwork TeacherClasswork @relation(fields: [classworkId], references: [id])
+
+    studentProfileId String
+    studentProfile StudentProfile @relation(fields: [studentProfileId], references: [id])
+
+    responseText String?
+    attachmentUrl String?
+    attachmentName String?
+    submittedAt DateTime @default(now())
+
+    institutionId String
+    institution Institution @relation(fields: [institutionId], references: [id])
+
+    departmentId String?
+    department Department? @relation(fields: [departmentId], references: [id])
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@unique([classworkId, studentProfileId])
+    @@index([studentProfileId, submittedAt])
+    @@index([institutionId])
+    @@map("student_classwork_submissions")
 }
 
 model SectionCourseTeacherAssignment {

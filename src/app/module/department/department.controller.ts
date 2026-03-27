@@ -21,6 +21,18 @@ const getDepartmentProfile = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getDashboardSummary = catchAsync(async (_req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await DepartmentService.getDashboardSummary(user.id);
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Department dashboard summary fetched successfully",
+    data: result,
+  });
+});
+
 const updateDepartmentProfile = catchAsync(async (req: Request, res: Response) => {
   const user = res.locals.authUser as { id: string };
   const result = await DepartmentService.updateDepartmentProfile(user.id, req.body);
@@ -448,8 +460,40 @@ const updateStudent = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const listStudentAdmissionApplications = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await DepartmentService.listStudentAdmissionApplications(
+    user.id,
+    req.query.status as "PENDING" | "SHORTLISTED" | "APPROVED" | "REJECTED" | undefined,
+  );
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Student admission applications fetched successfully",
+    data: result,
+  });
+});
+
+const reviewStudentAdmissionApplication = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await DepartmentService.reviewStudentAdmissionApplication(
+    user.id,
+    readParam(req.params.applicationId),
+    req.body,
+  );
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Student admission application reviewed successfully",
+    data: result,
+  });
+});
+
 export const DepartmentController = {
   getDepartmentProfile,
+  getDashboardSummary,
   updateDepartmentProfile,
   listSemesters,
   createSemester,
@@ -481,4 +525,6 @@ export const DepartmentController = {
   listStudents,
   createStudent,
   updateStudent,
+  listStudentAdmissionApplications,
+  reviewStudentAdmissionApplication,
 };
