@@ -73,6 +73,57 @@ const updateSemester = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const listBatches = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await DepartmentService.listBatches(
+    user.id,
+    req.query.departmentId as string | undefined,
+  );
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Batches fetched successfully",
+    data: result,
+  });
+});
+
+const createBatch = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await DepartmentService.createBatch(user.id, req.body);
+
+  sendResponse(res, {
+    httpStatusCode: 201,
+    success: true,
+    message: "Batch created successfully",
+    data: result,
+  });
+});
+
+const updateBatch = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await DepartmentService.updateBatch(user.id, readParam(req.params.batchId), req.body);
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Batch updated successfully",
+    data: result,
+  });
+});
+
+const deleteBatch = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await DepartmentService.deleteBatch(user.id, readParam(req.params.batchId));
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Batch deleted successfully",
+    data: result,
+  });
+});
+
 const listSections = catchAsync(async (req: Request, res: Response) => {
   const user = res.locals.authUser as { id: string };
   const result = await DepartmentService.listSections(
@@ -112,6 +163,18 @@ const updateSection = catchAsync(async (req: Request, res: Response) => {
     httpStatusCode: 200,
     success: true,
     message: "Section updated successfully",
+    data: result,
+  });
+});
+
+const deleteSection = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await DepartmentService.deleteSection(user.id, readParam(req.params.sectionId));
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Section deleted successfully",
     data: result,
   });
 });
@@ -241,6 +304,37 @@ const createCourseRegistration = catchAsync(async (req: Request, res: Response) 
   });
 });
 
+const updateCourseRegistration = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await DepartmentService.updateCourseRegistration(
+    user.id,
+    readParam(req.params.courseRegistrationId),
+    req.body,
+  );
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Course registration updated successfully",
+    data: result,
+  });
+});
+
+const deleteCourseRegistration = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await DepartmentService.deleteCourseRegistration(
+    user.id,
+    readParam(req.params.courseRegistrationId),
+  );
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Course registration deleted successfully",
+    data: result,
+  });
+});
+
 const listTeachers = catchAsync(async (req: Request, res: Response) => {
   const user = res.locals.authUser as { id: string };
   const result = await DepartmentService.listTeachers(
@@ -333,9 +427,14 @@ export const DepartmentController = {
   listSemesters,
   createSemester,
   updateSemester,
+  listBatches,
+  createBatch,
+  updateBatch,
+  deleteBatch,
   listSections,
   createSection,
   updateSection,
+  deleteSection,
   listPrograms,
   createProgram,
   updateProgram,
@@ -345,6 +444,8 @@ export const DepartmentController = {
   deleteCourse,
   listCourseRegistrations,
   createCourseRegistration,
+  updateCourseRegistration,
+  deleteCourseRegistration,
   listTeachers,
   createTeacher,
   updateTeacher,

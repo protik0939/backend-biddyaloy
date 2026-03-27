@@ -28,6 +28,26 @@ router.patch(
   DepartmentController.updateSemester,
 );
 
+router.get("/batches", requireSessionRole("ADMIN", "DEPARTMENT"), DepartmentController.listBatches);
+router.post(
+  "/batches",
+  requireSessionRole("ADMIN", "DEPARTMENT"),
+  validateRequest(DepartmentValidation.createBatchSchema),
+  DepartmentController.createBatch,
+);
+router.patch(
+  "/batches/:batchId",
+  requireSessionRole("ADMIN", "DEPARTMENT"),
+  validateRequest(DepartmentValidation.updateBatchSchema),
+  DepartmentController.updateBatch,
+);
+router.delete(
+  "/batches/:batchId",
+  requireSessionRole("ADMIN", "DEPARTMENT"),
+  validateRequest(DepartmentValidation.deleteBatchSchema),
+  DepartmentController.deleteBatch,
+);
+
 router.get("/sections", requireSessionRole("ADMIN", "DEPARTMENT"), DepartmentController.listSections);
 router.post(
   "/sections",
@@ -40,6 +60,12 @@ router.patch(
   requireSessionRole("ADMIN", "DEPARTMENT"),
   validateRequest(DepartmentValidation.updateSectionSchema),
   DepartmentController.updateSection,
+);
+router.delete(
+  "/sections/:sectionId",
+  requireSessionRole("ADMIN", "DEPARTMENT"),
+  validateRequest(DepartmentValidation.deleteSectionSchema),
+  DepartmentController.deleteSection,
 );
 
 router.get("/programs", requireSessionRole("ADMIN", "DEPARTMENT"), DepartmentController.listPrograms);
@@ -86,6 +112,18 @@ router.post(
   requireSessionRole("ADMIN", "DEPARTMENT"),
   validateRequest(DepartmentValidation.createCourseRegistrationSchema),
   DepartmentController.createCourseRegistration,
+);
+router.patch(
+  "/course-registrations/:courseRegistrationId",
+  requireSessionRole("ADMIN", "DEPARTMENT"),
+  validateRequest(DepartmentValidation.updateCourseRegistrationSchema),
+  DepartmentController.updateCourseRegistration,
+);
+router.delete(
+  "/course-registrations/:courseRegistrationId",
+  requireSessionRole("ADMIN", "DEPARTMENT"),
+  validateRequest(DepartmentValidation.deleteCourseRegistrationSchema),
+  DepartmentController.deleteCourseRegistration,
 );
 
 router.get("/teachers", requireSessionRole("ADMIN", "DEPARTMENT"), DepartmentController.listTeachers);

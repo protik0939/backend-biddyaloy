@@ -9,6 +9,7 @@ model Institution {
     updatedAt       DateTime         @updatedAt
     faculties       Faculty[]
     programs        Program[]
+    batches         Batch[]
     classrooms      ClassRoom[]
     sections        Section[]
     courses         Course[]

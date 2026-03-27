@@ -45,10 +45,39 @@ export const DepartmentValidation = {
       }),
   }),
 
+  createBatchSchema: z.object({
+    body: z.object({
+      name: z.string("Batch name is required").trim().min(1).max(80),
+      description: z.string("Description must be a string").trim().min(3).max(500).optional(),
+      departmentId: uuidSchema.optional(),
+    }),
+  }),
+
+  updateBatchSchema: z.object({
+    params: z.object({
+      batchId: uuidSchema,
+    }),
+    body: z
+      .object({
+        name: z.string("Batch name must be a string").trim().min(1).max(80).optional(),
+        description: z.string("Description must be a string").trim().min(3).max(500).optional(),
+      })
+      .refine((value) => Object.keys(value).length > 0, {
+        message: "At least one field is required",
+      }),
+  }),
+
+  deleteBatchSchema: z.object({
+    params: z.object({
+      batchId: uuidSchema,
+    }),
+  }),
+
   createSectionSchema: z.object({
     body: z.object({
       name: z.string("Section name is required").trim().min(1).max(80),
       semesterId: uuidSchema,
+      batchId: uuidSchema,
       sectionCapacity: z.number().int().positive().max(500).optional(),
       description: z.string("Description must be a string").trim().min(3).max(500).optional(),
       departmentId: uuidSchema.optional(),
@@ -63,12 +92,19 @@ export const DepartmentValidation = {
       .object({
         name: z.string("Section name must be a string").trim().min(1).max(80).optional(),
         semesterId: uuidSchema.optional(),
+        batchId: uuidSchema.optional(),
         sectionCapacity: z.number().int().positive().max(500).optional(),
         description: z.string("Description must be a string").trim().min(3).max(500).optional(),
       })
       .refine((value) => Object.keys(value).length > 0, {
         message: "At least one field is required",
       }),
+  }),
+
+  deleteSectionSchema: z.object({
+    params: z.object({
+      sectionId: uuidSchema,
+    }),
   }),
 
   createProgramSchema: z.object({
@@ -142,6 +178,31 @@ export const DepartmentValidation = {
       semesterId: uuidSchema,
       departmentId: uuidSchema.optional(),
       registrationDate: z.iso.datetime("registrationDate must be a valid ISO datetime").optional(),
+    }),
+  }),
+
+  updateCourseRegistrationSchema: z.object({
+    params: z.object({
+      courseRegistrationId: uuidSchema,
+    }),
+    body: z
+      .object({
+        courseId: uuidSchema.optional(),
+        studentProfileId: uuidSchema.optional(),
+        teacherProfileId: uuidSchema.optional(),
+        sectionId: uuidSchema.optional(),
+        programId: uuidSchema.optional(),
+        semesterId: uuidSchema.optional(),
+        registrationDate: z.iso.datetime("registrationDate must be a valid ISO datetime").optional(),
+      })
+      .refine((value) => Object.keys(value).length > 0, {
+        message: "At least one field is required",
+      }),
+  }),
+
+  deleteCourseRegistrationSchema: z.object({
+    params: z.object({
+      courseRegistrationId: uuidSchema,
     }),
   }),
 

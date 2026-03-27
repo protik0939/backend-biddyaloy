@@ -22,6 +22,7 @@ export interface IUpdateSemesterPayload {
 export interface ICreateSectionPayload {
   name: string;
   semesterId: string;
+  batchId: string;
   sectionCapacity?: number;
   description?: string;
   departmentId?: string;
@@ -30,7 +31,19 @@ export interface ICreateSectionPayload {
 export interface IUpdateSectionPayload {
   name?: string;
   semesterId?: string;
+  batchId?: string;
   sectionCapacity?: number;
+  description?: string;
+}
+
+export interface ICreateBatchPayload {
+  name: string;
+  description?: string;
+  departmentId?: string;
+}
+
+export interface IUpdateBatchPayload {
+  name?: string;
   description?: string;
 }
 
@@ -107,5 +120,15 @@ export interface ICreateCourseRegistrationPayload {
   programId?: string;
   semesterId: string;
   departmentId?: string;
+  registrationDate?: string;
+}
+
+export interface IUpdateCourseRegistrationPayload {
+  courseId?: string;
+  studentProfileId?: string;
+  teacherProfileId?: string;
+  sectionId?: string;
+  programId?: string;
+  semesterId?: string;
   registrationDate?: string;
 }
