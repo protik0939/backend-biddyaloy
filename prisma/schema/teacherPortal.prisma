@@ -86,3 +86,27 @@ model SectionCourseTeacherAssignment {
     @@index([institutionId])
     @@map("section_course_teacher_assignments")
 }
+
+model TeacherApplicationProfile {
+    id String @id @default(uuid())
+
+    teacherUserId String @unique
+    teacherUser User @relation(fields: [teacherUserId], references: [id])
+
+    headline String
+    about String
+    resumeUrl String
+    portfolioUrl String?
+
+    skills String[]
+    certifications String[]
+    academicRecords Json
+    experiences Json
+
+    isComplete Boolean @default(false)
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@map("teacher_application_profiles")
+}

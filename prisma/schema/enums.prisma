@@ -79,6 +79,7 @@ enum InstitutionApplicationStatus {
 
 enum TeacherJobApplicationStatus {
     PENDING
+    SHORTLISTED
     APPROVED
     REJECTED
 }

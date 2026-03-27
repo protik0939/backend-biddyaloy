@@ -8,6 +8,32 @@ const router = Router();
 
 router.get("/profile", requireSessionRole("TEACHER"), TeacherController.getProfileOverview);
 
+router.get(
+  "/application-profile",
+  requireSessionRole("TEACHER"),
+  TeacherController.getApplicationProfile,
+);
+
+router.post(
+  "/application-profile",
+  requireSessionRole("TEACHER"),
+  validateRequest(TeacherValidation.createTeacherApplicationProfileSchema),
+  TeacherController.createApplicationProfile,
+);
+
+router.patch(
+  "/application-profile",
+  requireSessionRole("TEACHER"),
+  validateRequest(TeacherValidation.updateTeacherApplicationProfileSchema),
+  TeacherController.updateApplicationProfile,
+);
+
+router.delete(
+  "/application-profile",
+  requireSessionRole("TEACHER"),
+  TeacherController.deleteApplicationProfile,
+);
+
 router.post(
   "/job-applications/:postingId",
   requireSessionRole("TEACHER"),

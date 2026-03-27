@@ -19,6 +19,54 @@ const getProfileOverview = catchAsync(async (_req: Request, res: Response) => {
   });
 });
 
+const getApplicationProfile = catchAsync(async (_req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await TeacherService.getApplicationProfile(user.id);
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Application profile fetched successfully",
+    data: result,
+  });
+});
+
+const createApplicationProfile = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await TeacherService.createApplicationProfile(user.id, req.body);
+
+  sendResponse(res, {
+    httpStatusCode: 201,
+    success: true,
+    message: "Application profile created successfully",
+    data: result,
+  });
+});
+
+const updateApplicationProfile = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await TeacherService.updateApplicationProfile(user.id, req.body);
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Application profile updated successfully",
+    data: result,
+  });
+});
+
+const deleteApplicationProfile = catchAsync(async (_req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await TeacherService.deleteApplicationProfile(user.id);
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Application profile deleted successfully",
+    data: result,
+  });
+});
+
 const applyToTeacherJobPosting = catchAsync(async (req: Request, res: Response) => {
   const user = res.locals.authUser as { id: string };
   const result = await TeacherService.applyToTeacherJobPosting(
@@ -210,6 +258,10 @@ const reviewTeacherApplication = catchAsync(async (req: Request, res: Response) 
 
 export const TeacherController = {
   getProfileOverview,
+  getApplicationProfile,
+  createApplicationProfile,
+  updateApplicationProfile,
+  deleteApplicationProfile,
   applyToTeacherJobPosting,
   listMyJobApplications,
   listAssignedSectionsWithStudents,

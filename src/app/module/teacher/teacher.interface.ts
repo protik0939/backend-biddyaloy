@@ -4,6 +4,43 @@ export interface ICreateTeacherJobApplicationPayload {
   coverLetter?: string;
 }
 
+export interface ITeacherAcademicRecord {
+  degree: string;
+  institute: string;
+  result: string;
+  year: number;
+}
+
+export interface ITeacherExperienceRecord {
+  organization: string;
+  title: string;
+  startDate: string;
+  endDate?: string;
+  responsibilities?: string;
+}
+
+export interface ICreateTeacherApplicationProfilePayload {
+  headline: string;
+  about: string;
+  resumeUrl: string;
+  portfolioUrl?: string;
+  skills: string[];
+  certifications?: string[];
+  academicRecords: ITeacherAcademicRecord[];
+  experiences: ITeacherExperienceRecord[];
+}
+
+export interface IUpdateTeacherApplicationProfilePayload {
+  headline?: string;
+  about?: string;
+  resumeUrl?: string;
+  portfolioUrl?: string;
+  skills?: string[];
+  certifications?: string[];
+  academicRecords?: ITeacherAcademicRecord[];
+  experiences?: ITeacherExperienceRecord[];
+}
+
 export interface IListTeacherClassworksQuery {
   sectionId?: string;
   type?: TeacherClassworkType;

@@ -25,6 +25,57 @@ const createJobApplicationSchema = z.object({
   }),
 });
 
+const academicRecordSchema = z.object({
+  degree: z.string("degree is required").trim().min(2).max(120),
+  institute: z.string("institute is required").trim().min(2).max(180),
+  result: z.string("result is required").trim().min(1).max(60),
+  year: z.number("year must be a number").int().min(1950).max(2100),
+});
+
+const experienceRecordSchema = z.object({
+  organization: z.string("organization is required").trim().min(2).max(180),
+  title: z.string("title is required").trim().min(2).max(120),
+  startDate: z.iso.datetime("startDate must be a valid ISO datetime"),
+  endDate: z.iso.datetime("endDate must be a valid ISO datetime").optional(),
+  responsibilities: z.string("responsibilities must be a string").trim().max(2000).optional(),
+});
+
+const createTeacherApplicationProfileSchema = z.object({
+  body: z.object({
+    headline: z.string("headline is required").trim().min(2).max(180),
+    about: z.string("about is required").trim().min(20).max(5000),
+    resumeUrl: z.url("resumeUrl must be a valid URL").trim(),
+    portfolioUrl: z.url("portfolioUrl must be a valid URL").trim().optional(),
+    skills: z
+      .array(z.string("skill must be a string").trim().min(1).max(60))
+      .min(1, "At least one skill is required"),
+    certifications: z
+      .array(z.string("certification must be a string").trim().min(1).max(120))
+      .optional(),
+    academicRecords: z.array(academicRecordSchema).min(1, "At least one academic record is required"),
+    experiences: z.array(experienceRecordSchema).min(1, "At least one experience record is required"),
+  }),
+});
+
+const updateTeacherApplicationProfileSchema = z.object({
+  body: z
+    .object({
+      headline: z.string("headline must be a string").trim().min(2).max(180).optional(),
+      about: z.string("about must be a string").trim().min(20).max(5000).optional(),
+      resumeUrl: z.url("resumeUrl must be a valid URL").trim().optional(),
+      portfolioUrl: z.url("portfolioUrl must be a valid URL").trim().optional(),
+      skills: z.array(z.string("skill must be a string").trim().min(1).max(60)).optional(),
+      certifications: z
+        .array(z.string("certification must be a string").trim().min(1).max(120))
+        .optional(),
+      academicRecords: z.array(academicRecordSchema).optional(),
+      experiences: z.array(experienceRecordSchema).optional(),
+    })
+    .refine((value) => Object.keys(value).length > 0, {
+      message: "At least one field is required",
+    }),
+});
+
 const listClassworksSchema = z.object({
   query: z.object({
     sectionId: uuidSchema.optional(),
@@ -127,7 +178,7 @@ const upsertMarkSchema = z.object({
 
 const listTeacherJobApplicationsSchema = z.object({
   query: z.object({
-    status: z.enum(["PENDING", "APPROVED", "REJECTED"]).optional(),
+    status: z.enum(["PENDING", "SHORTLISTED", "APPROVED", "REJECTED"]).optional(),
   }),
 });
 
@@ -137,7 +188,7 @@ const reviewTeacherJobApplicationSchema = z.object({
   }),
   body: z
     .object({
-      status: z.enum(["APPROVED", "REJECTED"]),
+      status: z.enum(["SHORTLISTED", "APPROVED", "REJECTED"]),
       responseMessage: z.string("responseMessage must be a string").trim().max(1200).optional(),
       rejectionReason: z.string("rejectionReason must be a string").trim().max(1200).optional(),
       teacherInitial: z
@@ -182,6 +233,8 @@ const reviewTeacherJobApplicationSchema = z.object({
 });
 
 export const TeacherValidation = {
+  createTeacherApplicationProfileSchema,
+  updateTeacherApplicationProfileSchema,
   createJobApplicationSchema,
   listClassworksSchema,
   createClassworkSchema,

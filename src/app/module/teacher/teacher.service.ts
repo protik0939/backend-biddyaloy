@@ -4,15 +4,92 @@ import {
   TeacherClassworkType,
   TeacherJobApplicationStatus,
 } from "../../../generated/prisma/enums";
+import type { Prisma } from "../../../generated/prisma/client";
 import { prisma } from "../../lib/prisma";
 import {
+  ICreateTeacherApplicationProfilePayload,
   ICreateTeacherClassworkPayload,
   ICreateTeacherJobApplicationPayload,
+  ITeacherAcademicRecord,
+  ITeacherExperienceRecord,
   IReviewTeacherJobApplicationPayload,
+  IUpdateTeacherApplicationProfilePayload,
   IUpsertSectionMarkPayload,
   IUpdateTeacherClassworkPayload,
   IUpsertSectionAttendancePayload,
 } from "./teacher.interface";
+
+const hasValidAcademicRecords = (records: unknown): records is ITeacherAcademicRecord[] => {
+  if (!Array.isArray(records) || records.length === 0) {
+    return false;
+  }
+
+  return records.every((item) => {
+    if (!item || typeof item !== "object") {
+      return false;
+    }
+
+    const value = item as Record<string, unknown>;
+    return (
+      typeof value.degree === "string" &&
+      value.degree.trim().length >= 2 &&
+      typeof value.institute === "string" &&
+      value.institute.trim().length >= 2 &&
+      typeof value.result === "string" &&
+      value.result.trim().length >= 1 &&
+      typeof value.year === "number"
+    );
+  });
+};
+
+const hasValidExperienceRecords = (records: unknown): records is ITeacherExperienceRecord[] => {
+  if (!Array.isArray(records) || records.length === 0) {
+    return false;
+  }
+
+  return records.every((item) => {
+    if (!item || typeof item !== "object") {
+      return false;
+    }
+
+    const value = item as Record<string, unknown>;
+    return (
+      typeof value.organization === "string" &&
+      value.organization.trim().length >= 2 &&
+      typeof value.title === "string" &&
+      value.title.trim().length >= 2 &&
+      typeof value.startDate === "string" &&
+      value.startDate.trim().length >= 10
+    );
+  });
+};
+
+const computeApplicationProfileCompleteness = (input: {
+  headline: string;
+  about: string;
+  resumeUrl: string;
+  skills: string[];
+  academicRecords: unknown;
+  experiences: unknown;
+}) => {
+  const hasSkills = Array.isArray(input.skills) && input.skills.some((item) => item.trim().length > 0);
+  return (
+    input.headline.trim().length >= 2 &&
+    input.about.trim().length >= 20 &&
+    input.resumeUrl.trim().length > 0 &&
+    hasSkills &&
+    hasValidAcademicRecords(input.academicRecords) &&
+    hasValidExperienceRecords(input.experiences)
+  );
+};
+
+const toJsonInputValue = (value: unknown): Prisma.InputJsonValue => {
+  if (value === null || value === undefined) {
+    return [];
+  }
+
+  return value as Prisma.InputJsonValue;
+};
 
 const LAB_MARKS_MAX = {
   labReport: 15,
@@ -196,11 +273,131 @@ const getProfileOverview = async (userId: string) => {
     },
   });
 
+  const applicationProfile = await prisma.teacherApplicationProfile.findUnique({
+    where: {
+      teacherUserId: userId,
+    },
+  });
+
   return {
     hasInstitution: Boolean(context.profile?.institutionId),
     user: context.user,
     profile: context.profile,
+    applicationProfile,
     applications,
+  };
+};
+
+const getApplicationProfile = async (userId: string) => {
+  return prisma.teacherApplicationProfile.findUnique({
+    where: {
+      teacherUserId: userId,
+    },
+  });
+};
+
+const createApplicationProfile = async (
+  userId: string,
+  payload: ICreateTeacherApplicationProfilePayload,
+) => {
+  const existing = await prisma.teacherApplicationProfile.findUnique({
+    where: {
+      teacherUserId: userId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (existing) {
+    throw createHttpError(409, "Application profile already exists. Use update instead.");
+  }
+
+  const normalized = {
+    headline: payload.headline.trim(),
+    about: payload.about.trim(),
+    resumeUrl: payload.resumeUrl.trim(),
+    portfolioUrl: payload.portfolioUrl?.trim() || null,
+    skills: payload.skills.map((item) => item.trim()).filter(Boolean),
+    certifications: (payload.certifications ?? []).map((item) => item.trim()).filter(Boolean),
+    academicRecords: toJsonInputValue(payload.academicRecords),
+    experiences: toJsonInputValue(payload.experiences),
+  };
+
+  return prisma.teacherApplicationProfile.create({
+    data: {
+      teacherUserId: userId,
+      ...normalized,
+      isComplete: computeApplicationProfileCompleteness(normalized),
+    },
+  });
+};
+
+const updateApplicationProfile = async (
+  userId: string,
+  payload: IUpdateTeacherApplicationProfilePayload,
+) => {
+  const existing = await prisma.teacherApplicationProfile.findUnique({
+    where: {
+      teacherUserId: userId,
+    },
+  });
+
+  if (!existing) {
+    throw createHttpError(404, "Application profile not found");
+  }
+
+  const next = {
+    headline: payload.headline?.trim() ?? existing.headline,
+    about: payload.about?.trim() ?? existing.about,
+    resumeUrl: payload.resumeUrl?.trim() ?? existing.resumeUrl,
+    portfolioUrl:
+      payload.portfolioUrl === undefined ? existing.portfolioUrl : payload.portfolioUrl.trim() || null,
+    skills:
+      payload.skills === undefined
+        ? existing.skills
+        : payload.skills.map((item) => item.trim()).filter(Boolean),
+    certifications:
+      payload.certifications === undefined
+        ? existing.certifications
+        : payload.certifications.map((item) => item.trim()).filter(Boolean),
+    academicRecords: toJsonInputValue(payload.academicRecords ?? existing.academicRecords),
+    experiences: toJsonInputValue(payload.experiences ?? existing.experiences),
+  };
+
+  return prisma.teacherApplicationProfile.update({
+    where: {
+      teacherUserId: userId,
+    },
+    data: {
+      ...next,
+      isComplete: computeApplicationProfileCompleteness(next),
+    },
+  });
+};
+
+const deleteApplicationProfile = async (userId: string) => {
+  const existing = await prisma.teacherApplicationProfile.findUnique({
+    where: {
+      teacherUserId: userId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!existing) {
+    throw createHttpError(404, "Application profile not found");
+  }
+
+  await prisma.teacherApplicationProfile.delete({
+    where: {
+      teacherUserId: userId,
+    },
+  });
+
+  return {
+    id: existing.id,
   };
 };
 
@@ -210,6 +407,23 @@ const applyToTeacherJobPosting = async (
   payload: ICreateTeacherJobApplicationPayload,
 ) => {
   const context = await resolveTeacherContext(userId);
+
+  const applicationProfile = await prisma.teacherApplicationProfile.findUnique({
+    where: {
+      teacherUserId: userId,
+    },
+    select: {
+      id: true,
+      isComplete: true,
+    },
+  });
+
+  if (!applicationProfile?.isComplete) {
+    throw createHttpError(
+      400,
+      "Complete your application profile (academic records, experiences, resume, and skills) before applying.",
+    );
+  }
 
   if (context.profile?.institutionId) {
     throw createHttpError(400, "You are already assigned to an institution");
@@ -972,6 +1186,21 @@ const listTeacherApplicationsForAdmin = async (
           name: true,
           email: true,
           accountStatus: true,
+          teacherApplicationProfile: {
+            select: {
+              id: true,
+              headline: true,
+              about: true,
+              resumeUrl: true,
+              portfolioUrl: true,
+              skills: true,
+              certifications: true,
+              academicRecords: true,
+              experiences: true,
+              isComplete: true,
+              updatedAt: true,
+            },
+          },
         },
       },
       reviewerUser: {
@@ -1019,7 +1248,10 @@ const reviewTeacherApplication = async (
     throw createHttpError(404, "Application not found");
   }
 
-  if (application.status !== TeacherJobApplicationStatus.PENDING) {
+  if (
+    application.status === TeacherJobApplicationStatus.APPROVED ||
+    application.status === TeacherJobApplicationStatus.REJECTED
+  ) {
     throw createHttpError(400, "Application has already been reviewed");
   }
 
@@ -1031,6 +1263,20 @@ const reviewTeacherApplication = async (
       data: {
         status: TeacherJobApplicationStatus.REJECTED,
         institutionResponse: payload.rejectionReason?.trim() || null,
+        reviewerUserId,
+        reviewedAt: new Date(),
+      },
+    });
+  }
+
+  if (payload.status === TeacherJobApplicationStatus.SHORTLISTED) {
+    return prisma.teacherJobApplication.update({
+      where: {
+        id: applicationId,
+      },
+      data: {
+        status: TeacherJobApplicationStatus.SHORTLISTED,
+        institutionResponse: payload.responseMessage?.trim() || null,
         reviewerUserId,
         reviewedAt: new Date(),
       },
@@ -1158,6 +1404,10 @@ const reviewTeacherApplication = async (
 
 export const TeacherService = {
   getProfileOverview,
+  getApplicationProfile,
+  createApplicationProfile,
+  updateApplicationProfile,
+  deleteApplicationProfile,
   applyToTeacherJobPosting,
   listMyJobApplications,
   listAssignedSectionsWithStudents,

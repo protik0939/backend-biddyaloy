@@ -16,6 +16,7 @@ model User {
   reviewedInstitutionApplications InstitutionApplication[] @relation("InstitutionApplicationReviewedBy")
   teacherJobApplications TeacherJobApplication[] @relation("TeacherJobApplicationApplicant")
   reviewedTeacherJobApplications TeacherJobApplication[] @relation("TeacherJobApplicationReviewer")
+  teacherApplicationProfile TeacherApplicationProfile?
 
   contactNo        String?
   presentAddress   String?
