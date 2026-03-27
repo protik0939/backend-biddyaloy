@@ -1,6 +1,7 @@
 import {
   AccountStatus,
   AdminRole,
+  InstitutionType,
   StudentAdmissionApplicationStatus,
   UserRole,
 } from "../../../generated/prisma/enums";
@@ -46,8 +47,28 @@ async function resolveDepartmentContext(userId: string, departmentId?: string) {
     },
   });
 
-  if (adminProfile?.role !== AdminRole.DEPARTMENTADMIN) {
+  if (!adminProfile?.institutionId) {
     throw createHttpError(403, "Only department admins can access this resource");
+  }
+
+  const institution = await prisma.institution.findUnique({
+    where: {
+      id: adminProfile.institutionId,
+    },
+    select: {
+      type: true,
+    },
+  });
+
+  const isInstitutionAdminNonUniversity =
+    adminProfile.role === AdminRole.INSTITUTIONADMIN &&
+    Boolean(institution?.type) &&
+    institution?.type !== InstitutionType.UNIVERSITY;
+
+  if (adminProfile.role !== AdminRole.DEPARTMENTADMIN) {
+    if (!isInstitutionAdminNonUniversity) {
+      throw createHttpError(403, "Only department admins can access this resource");
+    }
   }
 
   if (departmentId) {
@@ -89,6 +110,57 @@ async function resolveDepartmentContext(userId: string, departmentId?: string) {
   });
 
   if (departments.length === 0) {
+    if (isInstitutionAdminNonUniversity) {
+      const bootstrap = await prisma.$transaction(async (trx) => {
+        const existingFaculty = await trx.faculty.findFirst({
+          where: {
+            institutionId: adminProfile.institutionId,
+          },
+          select: {
+            id: true,
+          },
+          orderBy: {
+            createdAt: "asc",
+          },
+        });
+
+        const facultyId = existingFaculty
+          ? existingFaculty.id
+          : (
+              await trx.faculty.create({
+                data: {
+                  fullName: "General Faculty",
+                  shortName: "General",
+                  description: "Auto-created for non-university academic workspace",
+                  institutionId: adminProfile.institutionId,
+                },
+                select: {
+                  id: true,
+                },
+              })
+            ).id;
+
+        const createdDepartment = await trx.department.create({
+          data: {
+            fullName: "General Program",
+            shortName: "Program",
+            description: "Auto-created for non-university academic workspace",
+            facultyId,
+          },
+          select: {
+            id: true,
+          },
+        });
+
+        return createdDepartment;
+      });
+
+      return {
+        institutionId: adminProfile.institutionId,
+        departmentId: bootstrap.id,
+      };
+    }
+
     throw createHttpError(
       404,
       "No department found for this institution. Ask faculty admin to create one first",
@@ -96,6 +168,13 @@ async function resolveDepartmentContext(userId: string, departmentId?: string) {
   }
 
   if (departments.length > 1) {
+    if (isInstitutionAdminNonUniversity) {
+      return {
+        institutionId: adminProfile.institutionId,
+        departmentId: departments[0].id,
+      };
+    }
+
     throw createHttpError(400, "Multiple departments found. Please provide departmentId");
   }
 
@@ -1969,6 +2048,7 @@ const getDashboardSummary = async (userId: string) => {
         name: true,
         shortName: true,
         institutionLogo: true,
+        type: true,
       },
     }),
     prisma.department.findUnique({

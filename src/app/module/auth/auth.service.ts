@@ -35,6 +35,21 @@ const registerUser = async (payload: IRegisterUser) => {
   console.log("Registration data:", data);
   return data;
 };
+function resolveEffectiveRoleForInstitutionType(
+  baseRole: string,
+  adminRole: string | null | undefined,
+  institutionType: string | null | undefined,
+) {
+  if (baseRole !== "ADMIN") {
+    return baseRole;
+  }
+
+  if (institutionType && institutionType !== "UNIVERSITY") {
+    return "ADMIN";
+  }
+
+  return resolveUiRoleFromAdminRole(adminRole);
+}
 
 const loginUser = async (payload: ILoginUser) => {
   const { email, password } = payload;
@@ -89,10 +104,19 @@ const loginUser = async (payload: ILoginUser) => {
       },
       select: {
         role: true,
+        institution: {
+          select: {
+            type: true,
+          },
+        },
       },
     });
 
-    effectiveRole = resolveUiRoleFromAdminRole(adminProfile?.role);
+    effectiveRole = resolveEffectiveRoleForInstitutionType(
+      userRecord.role,
+      adminProfile?.role,
+      adminProfile?.institution?.type,
+    );
   }
 
   return {
@@ -149,12 +173,17 @@ const getCurrentUserProfile = async (userId: string) => {
             name: true,
             shortName: true,
             institutionLogo: true,
+            type: true,
           },
         },
       },
     });
 
-    effectiveRole = resolveUiRoleFromAdminRole(adminProfile?.role);
+    effectiveRole = resolveEffectiveRoleForInstitutionType(
+      userRecord.role,
+      adminProfile?.role,
+      adminProfile?.institution?.type,
+    );
     institution = adminProfile?.institution ?? null;
   }
 
