@@ -19,13 +19,16 @@ const connectionString =
 	normalizeEnv(process.env.POSTGRES_PRISMA_URL) ||
 	normalizeEnv(process.env.POSTGRES_URL);
 
+const safeConnectionString =
+	connectionString ?? "postgresql://invalid:invalid@127.0.0.1:5432/invalid";
+
 if (!connectionString) {
-	throw new Error(
-		"Database connection string is not set. Provide DATABASE_URL, POSTGRES_PRISMA_URL, or POSTGRES_URL.",
+	console.error(
+		"Database connection string is not set. Provide DATABASE_URL, POSTGRES_PRISMA_URL, or POSTGRES_URL in your deployment environment.",
 	);
 }
 
-const adapter = new PrismaPg({ connectionString });
+const adapter = new PrismaPg({ connectionString: safeConnectionString });
 const prisma = new PrismaClient({ adapter });
 
 export { prisma };

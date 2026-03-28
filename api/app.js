@@ -175,12 +175,13 @@ dotenv.config({
 });
 var normalizeEnv = (value) => value?.trim().replace(/^"(.*)"$/, "$1");
 var connectionString = normalizeEnv(process.env.DATABASE_URL) || normalizeEnv(process.env.POSTGRES_PRISMA_URL) || normalizeEnv(process.env.POSTGRES_URL);
+var safeConnectionString = connectionString ?? "postgresql://invalid:invalid@127.0.0.1:5432/invalid";
 if (!connectionString) {
-  throw new Error(
-    "Database connection string is not set. Provide DATABASE_URL, POSTGRES_PRISMA_URL, or POSTGRES_URL."
+  console.error(
+    "Database connection string is not set. Provide DATABASE_URL, POSTGRES_PRISMA_URL, or POSTGRES_URL in your deployment environment."
   );
 }
-var adapter = new PrismaPg({ connectionString });
+var adapter = new PrismaPg({ connectionString: safeConnectionString });
 var prisma = new PrismaClient({ adapter });
 
 // src/app/middleware/requireSessionRole.ts
