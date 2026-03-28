@@ -26,6 +26,11 @@ function createHttpError(statusCode: number, message: string) {
   return error;
 }
 
+function normalizeSearch(search?: string) {
+  const value = search?.trim();
+  return value || undefined;
+}
+
 function isLabCourse(courseTitle: string) {
   const normalized = courseTitle.toLowerCase();
   return normalized.includes("lab") || normalized.includes("laboratory");
@@ -346,6 +351,7 @@ const updateProfile = async (userId: string, payload: IUpdateStudentProfilePaylo
 
 const listTimeline = async (userId: string, query: IListStudentTimelineQuery) => {
   const { profile } = await resolveStudentInstitutionContext(userId);
+  const normalizedSearch = normalizeSearch(query.search);
 
   const registrations = await prisma.courseRegistration.findMany({
     where: {
@@ -398,6 +404,15 @@ const listTimeline = async (userId: string, query: IListStudentTimelineQuery) =>
         in: sectionIds,
       },
       type: query.type,
+      ...(normalizedSearch
+        ? {
+            OR: [
+              { title: { contains: normalizedSearch, mode: "insensitive" } },
+              { content: { contains: normalizedSearch, mode: "insensitive" } },
+              { section: { name: { contains: normalizedSearch, mode: "insensitive" } } },
+            ],
+          }
+        : {}),
     },
     include: {
       section: {
@@ -477,12 +492,24 @@ const listTimeline = async (userId: string, query: IListStudentTimelineQuery) =>
 
 const listRegisteredCourses = async (userId: string, query: IListStudentRegisteredCoursesQuery) => {
   const { profile } = await resolveStudentInstitutionContext(userId);
+  const normalizedSearch = normalizeSearch(query.search);
 
   return prisma.courseRegistration.findMany({
     where: {
       studentProfileId: profile.id,
       institutionId: profile.institutionId,
       semesterId: query.semesterId,
+      ...(normalizedSearch
+        ? {
+            OR: [
+              { course: { courseCode: { contains: normalizedSearch, mode: "insensitive" } } },
+              { course: { courseTitle: { contains: normalizedSearch, mode: "insensitive" } } },
+              { section: { name: { contains: normalizedSearch, mode: "insensitive" } } },
+              { semester: { name: { contains: normalizedSearch, mode: "insensitive" } } },
+              { teacherProfile: { user: { is: { name: { contains: normalizedSearch, mode: "insensitive" } } } } },
+            ],
+          }
+        : {}),
     },
     include: {
       course: {
@@ -749,9 +776,10 @@ const hasSectionAccessForClasswork = async (
 
 const listSubmissions = async (
   userId: string,
-  query: { classworkId?: string; semesterId?: string },
+  query: { classworkId?: string; semesterId?: string; search?: string },
 ) => {
   const { profile } = await resolveStudentInstitutionContext(userId);
+  const normalizedSearch = normalizeSearch(query.search);
 
   const semesterSectionIds = query.semesterId
     ? (
@@ -774,6 +802,15 @@ const listSubmissions = async (
       classworkId: query.classworkId,
       classwork: {
         sectionId: semesterSectionIds ? { in: semesterSectionIds } : undefined,
+        ...(normalizedSearch
+          ? {
+              OR: [
+                { title: { contains: normalizedSearch, mode: "insensitive" } },
+                { content: { contains: normalizedSearch, mode: "insensitive" } },
+                { section: { name: { contains: normalizedSearch, mode: "insensitive" } } },
+              ],
+            }
+          : {}),
       },
     },
     include: {

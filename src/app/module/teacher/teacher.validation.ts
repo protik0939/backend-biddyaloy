@@ -98,6 +98,7 @@ const listClassworksSchema = z.object({
   query: z.object({
     sectionId: uuidSchema.optional(),
     type: classworkTypeSchema.optional(),
+    search: z.string("search must be a string").trim().max(120).optional(),
   }),
 });
 

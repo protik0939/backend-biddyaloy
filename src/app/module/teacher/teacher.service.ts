@@ -1,7 +1,6 @@
 import {
   AccountStatus,
   AttendanceStatus,
-  TeacherClassworkType,
   TeacherJobApplicationStatus,
 } from "../../../generated/prisma/enums";
 import type { Prisma } from "../../../generated/prisma/client";
@@ -13,6 +12,7 @@ import {
   ITeacherAcademicRecord,
   ITeacherExperienceRecord,
   IReviewTeacherJobApplicationPayload,
+  IListTeacherClassworksQuery,
   IUpdateTeacherApplicationProfilePayload,
   IUpdateTeacherProfilePayload,
   IUpsertSectionMarkPayload,
@@ -118,6 +118,11 @@ function createHttpError(statusCode: number, message: string) {
   const error = new Error(message) as Error & { statusCode?: number };
   error.statusCode = statusCode;
   return error;
+}
+
+function normalizeSearch(search?: string) {
+  const value = search?.trim();
+  return value || undefined;
 }
 
 function normalizeDateToMidnight(value: string | Date) {
@@ -581,13 +586,28 @@ const listMyJobApplications = async (userId: string) => {
   });
 };
 
-const listAssignedSectionsWithStudents = async (userId: string) => {
+const listAssignedSectionsWithStudents = async (userId: string, search?: string) => {
   const context = await resolveTeacherInstitutionContext(userId);
+  const normalizedSearch = normalizeSearch(search);
 
   const registrations = await prisma.courseRegistration.findMany({
     where: {
       teacherProfileId: context.profile.id,
       institutionId: context.profile.institutionId,
+      ...(normalizedSearch
+        ? {
+            OR: [
+              { section: { name: { contains: normalizedSearch, mode: "insensitive" } } },
+              { section: { semester: { name: { contains: normalizedSearch, mode: "insensitive" } } } },
+              { section: { batch: { is: { name: { contains: normalizedSearch, mode: "insensitive" } } } } },
+              { course: { courseCode: { contains: normalizedSearch, mode: "insensitive" } } },
+              { course: { courseTitle: { contains: normalizedSearch, mode: "insensitive" } } },
+              { studentProfile: { studentsId: { contains: normalizedSearch, mode: "insensitive" } } },
+              { studentProfile: { user: { is: { name: { contains: normalizedSearch, mode: "insensitive" } } } } },
+              { studentProfile: { user: { is: { email: { contains: normalizedSearch, mode: "insensitive" } } } } },
+            ],
+          }
+        : {}),
     },
     include: {
       section: {
@@ -710,9 +730,10 @@ const listAssignedSectionsWithStudents = async (userId: string) => {
 
 const listClassworks = async (
   userId: string,
-  query: { sectionId?: string; type?: TeacherClassworkType },
+  query: IListTeacherClassworksQuery,
 ) => {
   const context = await resolveTeacherInstitutionContext(userId);
+  const normalizedSearch = normalizeSearch(query.search);
 
   if (query.sectionId) {
     const hasAccess = await prisma.courseRegistration.findFirst({
@@ -737,6 +758,15 @@ const listClassworks = async (
       institutionId: context.profile.institutionId,
       sectionId: query.sectionId,
       type: query.type,
+      ...(normalizedSearch
+        ? {
+            OR: [
+              { title: { contains: normalizedSearch, mode: "insensitive" } },
+              { content: { contains: normalizedSearch, mode: "insensitive" } },
+              { section: { name: { contains: normalizedSearch, mode: "insensitive" } } },
+            ],
+          }
+        : {}),
     },
     include: {
       section: {

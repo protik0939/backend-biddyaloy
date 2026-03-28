@@ -7,6 +7,14 @@ import { StudentService } from "./student.service";
 const readParam = (value: string | string[] | undefined) =>
   Array.isArray(value) ? value[0] : (value ?? "");
 
+const readQueryValue = (value: unknown) => {
+  if (Array.isArray(value)) {
+    return typeof value[0] === "string" ? value[0] : undefined;
+  }
+
+  return typeof value === "string" ? value : undefined;
+};
+
 const getProfileOverview = catchAsync(async (_req: Request, res: Response) => {
   const user = res.locals.authUser as { id: string };
   const result = await StudentService.getProfileOverview(user.id);
@@ -111,10 +119,12 @@ const listTimeline = catchAsync(async (req: Request, res: Response) => {
   const user = res.locals.authUser as { id: string };
   const semesterId = typeof req.query.semesterId === "string" ? req.query.semesterId : undefined;
   const type = typeof req.query.type === "string" ? (req.query.type as TeacherClassworkType) : undefined;
+  const search = readQueryValue(req.query.search);
 
   const result = await StudentService.listTimeline(user.id, {
     semesterId,
     type,
+    search,
   });
 
   sendResponse(res, {
@@ -128,9 +138,11 @@ const listTimeline = catchAsync(async (req: Request, res: Response) => {
 const listRegisteredCourses = catchAsync(async (req: Request, res: Response) => {
   const user = res.locals.authUser as { id: string };
   const semesterId = typeof req.query.semesterId === "string" ? req.query.semesterId : undefined;
+  const search = readQueryValue(req.query.search);
 
   const result = await StudentService.listRegisteredCourses(user.id, {
     semesterId,
+    search,
   });
 
   sendResponse(res, {
@@ -159,10 +171,12 @@ const listSubmissions = catchAsync(async (req: Request, res: Response) => {
   const user = res.locals.authUser as { id: string };
   const classworkId = typeof req.query.classworkId === "string" ? req.query.classworkId : undefined;
   const semesterId = typeof req.query.semesterId === "string" ? req.query.semesterId : undefined;
+  const search = readQueryValue(req.query.search);
 
   const result = await StudentService.listSubmissions(user.id, {
     classworkId,
     semesterId,
+    search,
   });
 
   sendResponse(res, {

@@ -6,6 +6,14 @@ import { InstitutionAdminService } from "./institutionAdmin.service";
 const readParam = (value: string | string[] | undefined) =>
   Array.isArray(value) ? value[0] : (value ?? "");
 
+const readQueryValue = (value: unknown) => {
+  if (Array.isArray(value)) {
+    return typeof value[0] === "string" ? value[0] : undefined;
+  }
+
+  return typeof value === "string" ? value : undefined;
+};
+
 const createSubAdminAccount = catchAsync(async (req: Request, res: Response) => {
   const user = res.locals.authUser as { id: string };
   const result = await InstitutionAdminService.createSubAdminAccount(user.id, req.body);
@@ -18,9 +26,12 @@ const createSubAdminAccount = catchAsync(async (req: Request, res: Response) => 
   });
 });
 
-const listFaculties = catchAsync(async (_req: Request, res: Response) => {
+const listFaculties = catchAsync(async (req: Request, res: Response) => {
   const user = res.locals.authUser as { id: string };
-  const result = await InstitutionAdminService.listFaculties(user.id);
+  const result = await InstitutionAdminService.listFaculties(
+    user.id,
+    readQueryValue(req.query.search),
+  );
 
   sendResponse(res, {
     httpStatusCode: 200,

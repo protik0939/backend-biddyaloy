@@ -22,6 +22,11 @@ function isMissingTableError(error: unknown) {
   return typeof maybeMessage === "string" && maybeMessage.includes("does not exist");
 }
 
+function normalizeSearch(search?: string) {
+  const value = search?.trim();
+  return value || undefined;
+}
+
 async function resolveAdminContext(userId: string) {
   const adminProfile = await prisma.adminProfile.findUnique({
     where: {
@@ -368,14 +373,20 @@ const listStudentAdmissionPostsPublic = async (limit = 50) => {
   });
 };
 
-const getPostingOptions = async (userId: string) => {
+const getPostingOptions = async (userId: string, search?: string) => {
   const context = await resolveAdminContext(userId);
+  const normalizedSearch = normalizeSearch(search);
 
   if (context.role === AdminRole.INSTITUTIONADMIN) {
     const [faculties, departments] = await Promise.all([
       prisma.faculty.findMany({
         where: {
           institutionId: context.institutionId,
+          ...(normalizedSearch
+            ? {
+                OR: [{ fullName: { contains: normalizedSearch, mode: "insensitive" } }],
+              }
+            : {}),
         },
         select: {
           id: true,
@@ -390,6 +401,11 @@ const getPostingOptions = async (userId: string) => {
           faculty: {
             institutionId: context.institutionId,
           },
+          ...(normalizedSearch
+            ? {
+                OR: [{ fullName: { contains: normalizedSearch, mode: "insensitive" } }],
+              }
+            : {}),
         },
         select: {
           id: true,
@@ -414,6 +430,11 @@ const getPostingOptions = async (userId: string) => {
         faculty: {
           institutionId: context.institutionId,
         },
+        ...(normalizedSearch
+          ? {
+              OR: [{ fullName: { contains: normalizedSearch, mode: "insensitive" } }],
+            }
+          : {}),
       },
       select: {
         id: true,

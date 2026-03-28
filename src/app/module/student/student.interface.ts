@@ -28,10 +28,12 @@ export interface ICreateStudentAdmissionApplicationPayload {
 export interface IListStudentTimelineQuery {
   semesterId?: string;
   type?: TeacherClassworkType;
+  search?: string;
 }
 
 export interface IListStudentRegisteredCoursesQuery {
   semesterId?: string;
+  search?: string;
 }
 
 export interface IListStudentResultQuery {

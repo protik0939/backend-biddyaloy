@@ -6,6 +6,14 @@ import { DepartmentService } from "./department.service";
 const readParam = (value: string | string[] | undefined) =>
   Array.isArray(value) ? value[0] : (value ?? "");
 
+const readQueryValue = (value: unknown) => {
+  if (Array.isArray(value)) {
+    return typeof value[0] === "string" ? value[0] : undefined;
+  }
+
+  return typeof value === "string" ? value : undefined;
+};
+
 const getDepartmentProfile = catchAsync(async (req: Request, res: Response) => {
   const user = res.locals.authUser as { id: string };
   const result = await DepartmentService.getDepartmentProfile(
@@ -45,9 +53,9 @@ const updateDepartmentProfile = catchAsync(async (req: Request, res: Response) =
   });
 });
 
-const listSemesters = catchAsync(async (_req: Request, res: Response) => {
+const listSemesters = catchAsync(async (req: Request, res: Response) => {
   const user = res.locals.authUser as { id: string };
-  const result = await DepartmentService.listSemesters(user.id);
+  const result = await DepartmentService.listSemesters(user.id, readQueryValue(req.query.search));
 
   sendResponse(res, {
     httpStatusCode: 200,
@@ -90,6 +98,7 @@ const listBatches = catchAsync(async (req: Request, res: Response) => {
   const result = await DepartmentService.listBatches(
     user.id,
     req.query.departmentId as string | undefined,
+    readQueryValue(req.query.search),
   );
 
   sendResponse(res, {
@@ -141,6 +150,7 @@ const listSections = catchAsync(async (req: Request, res: Response) => {
   const result = await DepartmentService.listSections(
     user.id,
     req.query.departmentId as string | undefined,
+    readQueryValue(req.query.search),
   );
 
   sendResponse(res, {
@@ -196,6 +206,7 @@ const listPrograms = catchAsync(async (req: Request, res: Response) => {
   const result = await DepartmentService.listPrograms(
     user.id,
     req.query.departmentId as string | undefined,
+    readQueryValue(req.query.search),
   );
 
   sendResponse(res, {
@@ -239,6 +250,7 @@ const listCourses = catchAsync(async (req: Request, res: Response) => {
   const result = await DepartmentService.listCourses(
     user.id,
     req.query.departmentId as string | undefined,
+    readQueryValue(req.query.search),
   );
 
   sendResponse(res, {
@@ -294,6 +306,7 @@ const listCourseRegistrations = catchAsync(async (req: Request, res: Response) =
   const result = await DepartmentService.listCourseRegistrations(
     user.id,
     req.query.departmentId as string | undefined,
+    readQueryValue(req.query.search),
   );
 
   sendResponse(res, {
@@ -309,6 +322,7 @@ const listSectionCourseTeacherAssignments = catchAsync(async (req: Request, res:
   const result = await DepartmentService.listSectionCourseTeacherAssignments(
     user.id,
     req.query.departmentId as string | undefined,
+    readQueryValue(req.query.search),
   );
 
   sendResponse(res, {
@@ -379,6 +393,7 @@ const listTeachers = catchAsync(async (req: Request, res: Response) => {
   const result = await DepartmentService.listTeachers(
     user.id,
     req.query.departmentId as string | undefined,
+    readQueryValue(req.query.search),
   );
 
   sendResponse(res, {
@@ -422,6 +437,7 @@ const listStudents = catchAsync(async (req: Request, res: Response) => {
   const result = await DepartmentService.listStudents(
     user.id,
     req.query.departmentId as string | undefined,
+    readQueryValue(req.query.search),
   );
 
   sendResponse(res, {

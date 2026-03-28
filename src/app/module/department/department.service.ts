@@ -36,6 +36,11 @@ function createHttpError(statusCode: number, message: string) {
   return error;
 }
 
+function normalizeSearch(search?: string) {
+  const value = search?.trim();
+  return value || undefined;
+}
+
 async function resolveDepartmentContext(userId: string, departmentId?: string) {
   const adminProfile = await prisma.adminProfile.findUnique({
     where: {
@@ -474,12 +479,18 @@ const updateDepartmentProfile = async (
   };
 };
 
-const listSemesters = async (userId: string) => {
+const listSemesters = async (userId: string, search?: string) => {
   const context = await resolveDepartmentContext(userId);
+  const normalizedSearch = normalizeSearch(search);
 
   return prisma.semester.findMany({
     where: {
       institutionId: context.institutionId,
+      ...(normalizedSearch
+        ? {
+            OR: [{ name: { contains: normalizedSearch, mode: "insensitive" } }],
+          }
+        : {}),
     },
     orderBy: {
       startDate: "desc",
@@ -546,13 +557,22 @@ const updateSemester = async (
   });
 };
 
-const listBatches = async (userId: string, departmentId?: string) => {
+const listBatches = async (userId: string, departmentId?: string, search?: string) => {
   const context = await resolveDepartmentContext(userId, departmentId);
+  const normalizedSearch = normalizeSearch(search);
 
   return prisma.batch.findMany({
     where: {
       institutionId: context.institutionId,
       departmentId: context.departmentId,
+      ...(normalizedSearch
+        ? {
+            OR: [
+              { name: { contains: normalizedSearch, mode: "insensitive" } },
+              { description: { contains: normalizedSearch, mode: "insensitive" } },
+            ],
+          }
+        : {}),
     },
     orderBy: {
       createdAt: "desc",
@@ -643,13 +663,24 @@ const deleteBatch = async (userId: string, batchId: string) => {
   };
 };
 
-const listSections = async (userId: string, departmentId?: string) => {
+const listSections = async (userId: string, departmentId?: string, search?: string) => {
   const context = await resolveDepartmentContext(userId, departmentId);
+  const normalizedSearch = normalizeSearch(search);
 
   return prisma.section.findMany({
     where: {
       institutionId: context.institutionId,
       departmentId: context.departmentId,
+      ...(normalizedSearch
+        ? {
+            OR: [
+              { name: { contains: normalizedSearch, mode: "insensitive" } },
+              { description: { contains: normalizedSearch, mode: "insensitive" } },
+              { semester: { name: { contains: normalizedSearch, mode: "insensitive" } } },
+              { batch: { is: { name: { contains: normalizedSearch, mode: "insensitive" } } } },
+            ],
+          }
+        : {}),
     },
     include: {
       semester: {
@@ -829,13 +860,23 @@ const deleteSection = async (userId: string, sectionId: string) => {
   };
 };
 
-const listPrograms = async (userId: string, departmentId?: string) => {
+const listPrograms = async (userId: string, departmentId?: string, search?: string) => {
   const context = await resolveDepartmentContext(userId, departmentId);
+  const normalizedSearch = normalizeSearch(search);
 
   return prisma.program.findMany({
     where: {
       institutionId: context.institutionId,
       departmentId: context.departmentId,
+      ...(normalizedSearch
+        ? {
+            OR: [
+              { title: { contains: normalizedSearch, mode: "insensitive" } },
+              { shortTitle: { contains: normalizedSearch, mode: "insensitive" } },
+              { description: { contains: normalizedSearch, mode: "insensitive" } },
+            ],
+          }
+        : {}),
     },
     orderBy: {
       createdAt: "desc",
@@ -895,13 +936,24 @@ const updateProgram = async (
   });
 };
 
-const listCourses = async (userId: string, departmentId?: string) => {
+const listCourses = async (userId: string, departmentId?: string, search?: string) => {
   const context = await resolveDepartmentContext(userId, departmentId);
+  const normalizedSearch = normalizeSearch(search);
 
   return prisma.course.findMany({
     where: {
       institutionId: context.institutionId,
       departmentId: context.departmentId,
+      ...(normalizedSearch
+        ? {
+            OR: [
+              { courseCode: { contains: normalizedSearch, mode: "insensitive" } },
+              { courseTitle: { contains: normalizedSearch, mode: "insensitive" } },
+              { description: { contains: normalizedSearch, mode: "insensitive" } },
+              { program: { is: { title: { contains: normalizedSearch, mode: "insensitive" } } } },
+            ],
+          }
+        : {}),
     },
     include: {
       program: {
@@ -1028,13 +1080,27 @@ const deleteCourse = async (userId: string, courseId: string) => {
   };
 };
 
-const listCourseRegistrations = async (userId: string, departmentId?: string) => {
+const listCourseRegistrations = async (userId: string, departmentId?: string, search?: string) => {
   const context = await resolveDepartmentContext(userId, departmentId);
+  const normalizedSearch = normalizeSearch(search);
 
   return prisma.courseRegistration.findMany({
     where: {
       institutionId: context.institutionId,
       departmentId: context.departmentId,
+      ...(normalizedSearch
+        ? {
+            OR: [
+              { course: { courseCode: { contains: normalizedSearch, mode: "insensitive" } } },
+              { course: { courseTitle: { contains: normalizedSearch, mode: "insensitive" } } },
+              { section: { name: { contains: normalizedSearch, mode: "insensitive" } } },
+              { studentProfile: { studentsId: { contains: normalizedSearch, mode: "insensitive" } } },
+              { studentProfile: { user: { is: { name: { contains: normalizedSearch, mode: "insensitive" } } } } },
+              { teacherProfile: { teacherInitial: { contains: normalizedSearch, mode: "insensitive" } } },
+              { teacherProfile: { user: { is: { name: { contains: normalizedSearch, mode: "insensitive" } } } } },
+            ],
+          }
+        : {}),
     },
     include: {
       course: {
@@ -1105,13 +1171,29 @@ const listCourseRegistrations = async (userId: string, departmentId?: string) =>
   });
 };
 
-const listSectionCourseTeacherAssignments = async (userId: string, departmentId?: string) => {
+const listSectionCourseTeacherAssignments = async (
+  userId: string,
+  departmentId?: string,
+  search?: string,
+) => {
   const context = await resolveDepartmentContext(userId, departmentId);
+  const normalizedSearch = normalizeSearch(search);
 
   return prisma.sectionCourseTeacherAssignment.findMany({
     where: {
       institutionId: context.institutionId,
       departmentId: context.departmentId,
+      ...(normalizedSearch
+        ? {
+            OR: [
+              { section: { name: { contains: normalizedSearch, mode: "insensitive" } } },
+              { course: { courseCode: { contains: normalizedSearch, mode: "insensitive" } } },
+              { course: { courseTitle: { contains: normalizedSearch, mode: "insensitive" } } },
+              { teacherProfile: { teacherInitial: { contains: normalizedSearch, mode: "insensitive" } } },
+              { teacherProfile: { user: { is: { name: { contains: normalizedSearch, mode: "insensitive" } } } } },
+            ],
+          }
+        : {}),
     },
     include: {
       section: {
@@ -1769,13 +1851,33 @@ const deleteCourseRegistration = async (userId: string, courseRegistrationId: st
   };
 };
 
-const listTeachers = async (userId: string, departmentId?: string) => {
+const listTeachers = async (userId: string, departmentId?: string, search?: string) => {
   const context = await resolveDepartmentContext(userId, departmentId);
+  const normalizedSearch = normalizeSearch(search);
 
   return prisma.teacherProfile.findMany({
     where: {
       institutionId: context.institutionId,
       departmentId: context.departmentId,
+      ...(normalizedSearch
+        ? {
+            OR: [
+              { teacherInitial: { contains: normalizedSearch, mode: "insensitive" } },
+              { teachersId: { contains: normalizedSearch, mode: "insensitive" } },
+              { designation: { contains: normalizedSearch, mode: "insensitive" } },
+              {
+                user: {
+                  is: {
+                    OR: [
+                      { name: { contains: normalizedSearch, mode: "insensitive" } },
+                      { email: { contains: normalizedSearch, mode: "insensitive" } },
+                    ],
+                  },
+                },
+              },
+            ],
+          }
+        : {}),
     },
     include: {
       user: {
@@ -1898,13 +2000,31 @@ const updateTeacher = async (
   return result;
 };
 
-const listStudents = async (userId: string, departmentId?: string) => {
+const listStudents = async (userId: string, departmentId?: string, search?: string) => {
   const context = await resolveDepartmentContext(userId, departmentId);
+  const normalizedSearch = normalizeSearch(search);
 
   return prisma.studentProfile.findMany({
     where: {
       institutionId: context.institutionId,
       departmentId: context.departmentId,
+      ...(normalizedSearch
+        ? {
+            OR: [
+              { studentsId: { contains: normalizedSearch, mode: "insensitive" } },
+              {
+                user: {
+                  is: {
+                    OR: [
+                      { name: { contains: normalizedSearch, mode: "insensitive" } },
+                      { email: { contains: normalizedSearch, mode: "insensitive" } },
+                    ],
+                  },
+                },
+              },
+            ],
+          }
+        : {}),
     },
     include: {
       user: {

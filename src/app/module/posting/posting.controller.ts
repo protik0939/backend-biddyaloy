@@ -16,6 +16,14 @@ const readLimit = (value: unknown) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 50;
 };
 
+const readQueryValue = (value: unknown) => {
+  if (Array.isArray(value)) {
+    return typeof value[0] === "string" ? value[0] : undefined;
+  }
+
+  return typeof value === "string" ? value : undefined;
+};
+
 const createTeacherJobPost = catchAsync(async (req: Request, res: Response) => {
   const user = res.locals.authUser as { id: string };
   const result = await PostingService.createTeacherJobPost(user.id, req.body);
@@ -64,9 +72,9 @@ const listStudentAdmissionPostsPublic = catchAsync(async (req: Request, res: Res
   });
 });
 
-const getPostingOptions = catchAsync(async (_req: Request, res: Response) => {
+const getPostingOptions = catchAsync(async (req: Request, res: Response) => {
   const user = res.locals.authUser as { id: string };
-  const result = await PostingService.getPostingOptions(user.id);
+  const result = await PostingService.getPostingOptions(user.id, readQueryValue(req.query.search));
 
   sendResponse(res, {
     httpStatusCode: 200,

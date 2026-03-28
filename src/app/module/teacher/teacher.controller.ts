@@ -7,6 +7,14 @@ import { TeacherService } from "./teacher.service";
 const readParam = (value: string | string[] | undefined) =>
   Array.isArray(value) ? value[0] : (value ?? "");
 
+const readQueryValue = (value: unknown) => {
+  if (Array.isArray(value)) {
+    return typeof value[0] === "string" ? value[0] : undefined;
+  }
+
+  return typeof value === "string" ? value : undefined;
+};
+
 const getProfileOverview = catchAsync(async (_req: Request, res: Response) => {
   const user = res.locals.authUser as { id: string };
   const result = await TeacherService.getProfileOverview(user.id);
@@ -107,9 +115,12 @@ const listMyJobApplications = catchAsync(async (_req: Request, res: Response) =>
   });
 });
 
-const listAssignedSectionsWithStudents = catchAsync(async (_req: Request, res: Response) => {
+const listAssignedSectionsWithStudents = catchAsync(async (req: Request, res: Response) => {
   const user = res.locals.authUser as { id: string };
-  const result = await TeacherService.listAssignedSectionsWithStudents(user.id);
+  const result = await TeacherService.listAssignedSectionsWithStudents(
+    user.id,
+    readQueryValue(req.query.search),
+  );
 
   sendResponse(res, {
     httpStatusCode: 200,
@@ -126,10 +137,12 @@ const listClassworks = catchAsync(async (req: Request, res: Response) => {
     typeof req.query.type === "string"
       ? (req.query.type as TeacherClassworkType)
       : undefined;
+  const search = readQueryValue(req.query.search);
 
   const result = await TeacherService.listClassworks(user.id, {
     sectionId,
     type,
+    search,
   });
 
   sendResponse(res, {

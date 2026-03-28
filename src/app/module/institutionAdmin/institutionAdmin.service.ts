@@ -33,6 +33,11 @@ function canCreateSubAdmin(
   return false;
 }
 
+function normalizeSearch(search?: string) {
+  const value = search?.trim();
+  return value || undefined;
+}
+
 const resolveInstitutionAdminContext = async (creatorUserId: string) => {
   const creatorAdminProfile = await prisma.adminProfile.findUnique({
     where: {
@@ -328,7 +333,7 @@ const deleteSemester = async (creatorUserId: string, semesterId: string) => {
   };
 };
 
-const listFaculties = async (creatorUserId: string) => {
+const listFaculties = async (creatorUserId: string, search?: string) => {
   const creatorAdminProfile = await prisma.adminProfile.findUnique({
     where: {
       userId: creatorUserId,
@@ -347,9 +352,19 @@ const listFaculties = async (creatorUserId: string) => {
     throw createHttpError(403, "You are not allowed to view faculties for department creation");
   }
 
+  const normalizedSearch = normalizeSearch(search);
+
   return prisma.faculty.findMany({
     where: {
       institutionId: creatorAdminProfile.institutionId,
+      ...(normalizedSearch
+        ? {
+            OR: [
+              { fullName: { contains: normalizedSearch, mode: "insensitive" } },
+              { shortName: { contains: normalizedSearch, mode: "insensitive" } },
+            ],
+          }
+        : {}),
     },
     select: {
       id: true,

@@ -56,6 +56,7 @@ export interface IUpdateTeacherProfilePayload {
 export interface IListTeacherClassworksQuery {
   sectionId?: string;
   type?: TeacherClassworkType;
+  search?: string;
 }
 
 export interface ICreateTeacherClassworkPayload {
