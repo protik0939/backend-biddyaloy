@@ -9,6 +9,7 @@ type SessionUser = {
 };
 
 const SESSION_COOKIE_KEYS = [
+  "__Secure-better-auth.session_token",
   "better-auth.session_token",
   "better-auth.session-token",
   "session_token",
@@ -36,6 +37,14 @@ function getCookieMap(cookieHeader: string | undefined): Map<string, string> {
 }
 
 function getSessionTokenFromRequest(req: Request): string | undefined {
+  const authorizationHeader = req.headers.authorization;
+  if (authorizationHeader?.toLowerCase().startsWith("bearer ")) {
+    const bearerToken = authorizationHeader.slice("bearer ".length).trim();
+    if (bearerToken) {
+      return bearerToken;
+    }
+  }
+
   const cookieHeader = req.headers.cookie;
   const cookieMap = getCookieMap(cookieHeader);
 
@@ -65,7 +74,7 @@ async function resolveUserFromSessionToken(sessionToken: string): Promise<Sessio
     },
   });
 
-  if (!session || !session.user) {
+  if (!session?.user) {
     return null;
   }
 
@@ -101,10 +110,11 @@ export const requireSessionRole = (...roles: AuthUserRole[]) => {
       if (!roles.includes(user.role as AuthUserRole)) {
         return res.status(403).json({
           success: false,
-          message: "Forbidden",
+          message: "Forbidden: insufficient role",
         });
       }
 
+      req.authUser = user;
       res.locals.authUser = user;
       next();
     } catch (error) {
@@ -112,3 +122,5 @@ export const requireSessionRole = (...roles: AuthUserRole[]) => {
     }
   };
 };
+
+export const requireAdminRole = () => requireSessionRole("ADMIN");

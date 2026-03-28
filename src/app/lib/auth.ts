@@ -1,11 +1,32 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "./prisma";
-import { AccountStatus, UserRole } from "../../generated/prisma/enums";
-import { role } from "better-auth/plugins";
+import { AccountStatus } from "../../generated/prisma/enums";
+import { buildTrustedOrigins } from "../shared/originPolicy";
 // If your Prisma file is located elsewhere, you can change the path
 
+const isProduction = process.env.NODE_ENV === "production";
+
+const cookieAttributes = isProduction
+  ? {
+      sameSite: "none" as const,
+      secure: true,
+      httpOnly: true,
+      path: "/",
+    }
+  : {
+      sameSite: "lax" as const,
+      secure: false,
+      httpOnly: true,
+      path: "/",
+    };
+
 export const auth = betterAuth({
+  secret: process.env.AUTH_SECRET ?? process.env.BETTER_AUTH_SECRET,
+  baseURL: process.env.BACKEND_PUBLIC_URL ?? process.env.BETTER_AUTH_URL,
+  trustedOrigins: buildTrustedOrigins(),
+  useSecureCookies: isProduction,
+  defaultCookieAttributes: cookieAttributes,
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),

@@ -1,34 +1,44 @@
 import express, { Application, Request, Response } from "express";
 import cors from "cors";
+import { toNodeHandler } from "better-auth/node";
 import { globalErrorHandler } from "./app/middleware/globalErrorHandler";
 import { notFound } from "./app/middleware/notFound";
 import { IndexRouters } from "./app/routes";
+import { auth } from "./app/lib/auth";
+import { buildOriginPolicy } from "./app/shared/originPolicy";
 
 const app: Application = express();
 
-const defaultAllowedOrigins = ["http://localhost:3000"];
-const envAllowedOrigins = [
-  process.env.FRONTEND_URL,
-  process.env.NEXT_PUBLIC_FRONTEND_URL,
-]
-  .filter(Boolean)
-  .map((origin) => origin as string);
-
-const allowedOrigins = new Set([...defaultAllowedOrigins, ...envAllowedOrigins]);
+const originPolicy = buildOriginPolicy();
 
 const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.has(origin)) {
+    if (!origin || originPolicy.isAllowedOrigin(origin)) {
       callback(null, true);
       return;
     }
 
-    callback(new Error("Not allowed by CORS"));
+    callback(null, false);
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
 };
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+
+  if (!origin || originPolicy.isAllowedOrigin(origin)) {
+    next();
+    return;
+  }
+
+  res.status(403).json({
+    success: false,
+    message: "CORS origin denied",
+    errors: [{ path: "origin", message: `Origin ${origin} is not allowed` }],
+  });
+});
 
 app.use(
   cors(corsOptions),
@@ -37,6 +47,10 @@ app.use(
 app.use(express.urlencoded({ extended: true }));
 
 app.use(express.json());
+
+const authHandler = toNodeHandler(auth);
+app.all("/api/auth", authHandler);
+app.all(/^\/api\/auth\/.*/, authHandler);
 
 app.use('/api/v1/', IndexRouters);
 
