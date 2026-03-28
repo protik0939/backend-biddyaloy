@@ -7,6 +7,11 @@ import { buildTrustedOrigins } from "../shared/originPolicy";
 
 const isProduction = process.env.NODE_ENV === "production";
 
+const resolvedBaseURL =
+  process.env.BACKEND_PUBLIC_URL ??
+  process.env.BETTER_AUTH_URL ??
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined);
+
 const cookieAttributes = isProduction
   ? {
       sameSite: "none" as const,
@@ -23,7 +28,7 @@ const cookieAttributes = isProduction
 
 export const auth = betterAuth({
   secret: process.env.AUTH_SECRET ?? process.env.BETTER_AUTH_SECRET,
-  baseURL: process.env.BACKEND_PUBLIC_URL ?? process.env.BETTER_AUTH_URL,
+  baseURL: resolvedBaseURL,
   trustedOrigins: buildTrustedOrigins(),
   useSecureCookies: isProduction,
   defaultCookieAttributes: cookieAttributes,

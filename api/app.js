@@ -171,11 +171,14 @@ var __filename = fileURLToPath2(import.meta.url);
 var __dirname = path2.dirname(__filename);
 dotenv.config({
   path: path2.resolve(__dirname, "../../../.env"),
-  override: true
+  override: false
 });
-var connectionString = process.env.DATABASE_URL?.trim().replace(/^"(.*)"$/, "$1");
+var normalizeEnv = (value) => value?.trim().replace(/^"(.*)"$/, "$1");
+var connectionString = normalizeEnv(process.env.DATABASE_URL) || normalizeEnv(process.env.POSTGRES_PRISMA_URL) || normalizeEnv(process.env.POSTGRES_URL);
 if (!connectionString) {
-  throw new Error("DATABASE_URL is not set. Check backend-biddyaloy/.env");
+  throw new Error(
+    "Database connection string is not set. Provide DATABASE_URL, POSTGRES_PRISMA_URL, or POSTGRES_URL."
+  );
 }
 var adapter = new PrismaPg({ connectionString });
 var prisma = new PrismaClient({ adapter });
@@ -381,6 +384,7 @@ function buildTrustedOrigins() {
 
 // src/app/lib/auth.ts
 var isProduction = process.env.NODE_ENV === "production";
+var resolvedBaseURL = process.env.BACKEND_PUBLIC_URL ?? process.env.BETTER_AUTH_URL ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : void 0);
 var cookieAttributes = isProduction ? {
   sameSite: "none",
   secure: true,
@@ -394,7 +398,7 @@ var cookieAttributes = isProduction ? {
 };
 var auth = betterAuth({
   secret: process.env.AUTH_SECRET ?? process.env.BETTER_AUTH_SECRET,
-  baseURL: process.env.BACKEND_PUBLIC_URL ?? process.env.BETTER_AUTH_URL,
+  baseURL: resolvedBaseURL,
   trustedOrigins: buildTrustedOrigins(),
   useSecureCookies: isProduction,
   defaultCookieAttributes: cookieAttributes,
