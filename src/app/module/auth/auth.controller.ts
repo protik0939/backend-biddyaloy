@@ -40,8 +40,47 @@ const getCurrentUserProfile = catchAsync(async (_req: Request, res: Response) =>
   });
 });
 
+const getOtpStatus = catchAsync(async (req: Request, res: Response) => {
+  const payload = req.body;
+  const result = await AuthService.getAccountVerificationOtpStatus(payload);
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "OTP status fetched successfully",
+    data: result,
+  });
+});
+
+const resendOtp = catchAsync(async (req: Request, res: Response) => {
+  const payload = req.body;
+  const result = await AuthService.resendAccountVerificationOtp(payload);
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "OTP sent successfully",
+    data: result,
+  });
+});
+
+const verifyOtp = catchAsync(async (req: Request, res: Response) => {
+  const payload = req.body;
+  const result = await AuthService.verifyAccountOtp(payload);
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Account verified successfully",
+    data: result,
+  });
+});
+
 export const AuthController = {
   registerUser,
   loginUser,
   getCurrentUserProfile,
+  getOtpStatus,
+  resendOtp,
+  verifyOtp,
 };

@@ -20,6 +20,7 @@ model User {
   studentAdmissionApplications StudentAdmissionApplication[] @relation("StudentAdmissionApplicant")
   reviewedStudentAdmissionApplications StudentAdmissionApplication[] @relation("StudentAdmissionReviewer")
   studentApplicationProfile StudentApplicationProfile?
+  emailOtps EmailOtp[]
 
   contactNo        String?
   presentAddress   String?
@@ -83,4 +84,18 @@ model Verification {
 
   @@index([identifier])
   @@map("verification")
+}
+
+model EmailOtp {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  otpHash   String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId])
+  @@index([expiresAt])
+  @@map("email_otps")
 }

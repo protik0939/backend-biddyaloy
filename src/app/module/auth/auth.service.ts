@@ -1,7 +1,13 @@
 import { auth } from "../../lib/auth";
 import { prisma } from "../../lib/prisma";
 import { AccountStatus, AdminRole } from "../../../generated/prisma/enums";
-import { ILoginUser, IRegisterUser } from "./auth.interface";
+import {
+  IAuthOtpEmailPayload,
+  ILoginUser,
+  IRegisterUser,
+  IVerifyAuthOtpPayload,
+} from "./auth.interface";
+import { AuthOtpService } from "./authOtp.service";
 
 function resolveUiRoleFromAdminRole(adminRole: string | null | undefined): string {
   if (adminRole === AdminRole.FACULTYADMIN) {
@@ -17,7 +23,6 @@ function resolveUiRoleFromAdminRole(adminRole: string | null | undefined): strin
 
 const registerUser = async (payload: IRegisterUser) => {
   const { name, email, password, role } = payload;
-  console.log("Registering user with payload:", payload);
 
   const data = await auth.api.signUpEmail({
     body: {
@@ -32,7 +37,42 @@ const registerUser = async (payload: IRegisterUser) => {
     throw new Error("Failed to register user");
   }
 
-  console.log("Registration data:", data);
+  const userRecord = await prisma.user.findUnique({
+    where: {
+      id: data.user.id,
+    },
+    select: {
+      accountStatus: true,
+      role: true,
+      email: true,
+    },
+  });
+
+  if (!userRecord) {
+    throw new Error("User account not found");
+  }
+
+  if (userRecord.accountStatus === AccountStatus.PENDING) {
+    const verification = await AuthOtpService.issueAccountVerificationOtp(
+      data.user.id,
+      userRecord.email,
+      { enforceCooldown: false },
+    );
+
+    return {
+      ...data,
+      role: userRecord.role,
+      user: {
+        ...data.user,
+        role: userRecord.role,
+        baseRole: userRecord.role,
+        accountStatus: userRecord.accountStatus,
+      },
+      verificationRequired: true,
+      verification,
+    };
+  }
+
   return data;
 };
 function resolveEffectiveRoleForInstitutionType(
@@ -95,6 +135,27 @@ const loginUser = async (payload: ILoginUser) => {
     throw new Error("User account deletion is pending");
   }
 
+  if (userRecord.accountStatus === AccountStatus.PENDING) {
+    const verification = await AuthOtpService.issueAccountVerificationOtp(
+      data.user.id,
+      data.user.email,
+      { enforceCooldown: false },
+    );
+
+    return {
+      ...data,
+      role: userRecord.role,
+      user: {
+        ...data.user,
+        role: userRecord.role,
+        baseRole: userRecord.role,
+        accountStatus: userRecord.accountStatus,
+      },
+      verificationRequired: true,
+      verification,
+    };
+  }
+
   let effectiveRole = userRecord.role;
 
   if (userRecord.role === "ADMIN") {
@@ -148,6 +209,14 @@ const getCurrentUserProfile = async (userId: string) => {
 
   if (!userRecord) {
     throw new Error("User account not found");
+  }
+
+  if (userRecord.accountStatus === AccountStatus.PENDING) {
+    const error = new Error("Account verification is required") as Error & {
+      statusCode?: number;
+    };
+    error.statusCode = 403;
+    throw error;
   }
 
   let effectiveRole = userRecord.role;
@@ -245,8 +314,69 @@ const getCurrentUserProfile = async (userId: string) => {
   };
 };
 
+const getAccountVerificationOtpStatus = async (payload: IAuthOtpEmailPayload) => {
+  return AuthOtpService.getAccountVerificationOtpStatusByEmail(payload.email);
+};
+
+const resendAccountVerificationOtp = async (payload: IAuthOtpEmailPayload) => {
+  return AuthOtpService.resendAccountVerificationOtpByEmail(payload.email);
+};
+
+const verifyAccountOtp = async (payload: IVerifyAuthOtpPayload) => {
+  const verificationResult = await AuthOtpService.verifyAccountOtpByEmail(
+    payload.email,
+    payload.otp,
+  );
+
+  const verifiedUser = await prisma.user.findUnique({
+    where: {
+      email: payload.email,
+    },
+    select: {
+      id: true,
+      role: true,
+    },
+  });
+
+  if (!verifiedUser) {
+    throw new Error("User account not found");
+  }
+
+  let effectiveRole = verifiedUser.role;
+
+  if (verifiedUser.role === "ADMIN") {
+    const adminProfile = await prisma.adminProfile.findUnique({
+      where: {
+        userId: verifiedUser.id,
+      },
+      select: {
+        role: true,
+        institution: {
+          select: {
+            type: true,
+          },
+        },
+      },
+    });
+
+    effectiveRole = resolveEffectiveRoleForInstitutionType(
+      verifiedUser.role,
+      adminProfile?.role,
+      adminProfile?.institution?.type,
+    );
+  }
+
+  return {
+    ...verificationResult,
+    role: effectiveRole,
+  };
+};
+
 export const AuthService = {
   registerUser,
   loginUser,
   getCurrentUserProfile,
+  getAccountVerificationOtpStatus,
+  resendAccountVerificationOtp,
+  verifyAccountOtp,
 };

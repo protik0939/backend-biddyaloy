@@ -52,6 +52,22 @@ const loginSchema = z.object({
   }),
 });
 
+const otpBaseSchema = z.object({
+  body: z.object({
+    email: emailSchema,
+  }),
+});
+
+const verifyOtpSchema = z.object({
+  body: z.object({
+    email: emailSchema,
+    otp: z
+      .string("OTP is required")
+      .trim()
+      .regex(/^\d{6}$/, "OTP must be exactly 6 digits"),
+  }),
+});
+
 const changePasswordSchema = z
   .object({
     body: z.object({
@@ -115,6 +131,8 @@ const refreshTokenSchema = z.object({
 export const AuthValidation = {
   registerSchema,
   loginSchema,
+  otpBaseSchema,
+  verifyOtpSchema,
   changePasswordSchema,
   forgotPasswordSchema,
   resetPasswordSchema,

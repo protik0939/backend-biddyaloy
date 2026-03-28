@@ -14,4 +14,12 @@ interface ILoginUser {
   password: string;
 }
 
-export { IRegisterUser, ILoginUser };
+interface IAuthOtpEmailPayload {
+  email: string;
+}
+
+interface IVerifyAuthOtpPayload extends IAuthOtpEmailPayload {
+  otp: string;
+}
+
+export { IRegisterUser, ILoginUser, IAuthOtpEmailPayload, IVerifyAuthOtpPayload };

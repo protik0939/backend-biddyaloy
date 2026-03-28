@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response } from "express";
+import { AccountStatus } from "../../generated/prisma/enums";
 import { prisma } from "../lib/prisma";
 
 type AuthUserRole = "SUPERADMIN" | "ADMIN" | "FACULTY" | "DEPARTMENT" | "TEACHER" | "STUDENT";
@@ -6,6 +7,7 @@ type AuthUserRole = "SUPERADMIN" | "ADMIN" | "FACULTY" | "DEPARTMENT" | "TEACHER
 type SessionUser = {
   id: string;
   role: string;
+  accountStatus: string;
 };
 
 const SESSION_COOKIE_KEYS = [
@@ -69,6 +71,7 @@ async function resolveUserFromSessionToken(sessionToken: string): Promise<Sessio
         select: {
           id: true,
           role: true,
+          accountStatus: true,
         },
       },
     },
@@ -85,6 +88,7 @@ async function resolveUserFromSessionToken(sessionToken: string): Promise<Sessio
   return {
     id: session.user.id,
     role: session.user.role,
+    accountStatus: session.user.accountStatus,
   };
 }
 
@@ -111,6 +115,13 @@ export const requireSessionRole = (...roles: AuthUserRole[]) => {
         return res.status(403).json({
           success: false,
           message: "Forbidden: insufficient role",
+        });
+      }
+
+      if (user.accountStatus === AccountStatus.PENDING) {
+        return res.status(403).json({
+          success: false,
+          message: "Account verification is required",
         });
       }
 

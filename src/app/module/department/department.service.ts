@@ -1912,26 +1912,37 @@ const createTeacher = async (userId: string, payload: ICreateTeacherPayload) => 
     throw createHttpError(500, "Failed to create teacher account");
   }
 
-  const profile = await prisma.teacherProfile.create({
-    data: {
-      teacherInitial: payload.teacherInitial.trim(),
-      teachersId: payload.teachersId.trim(),
-      designation: payload.designation.trim(),
-      bio: payload.bio?.trim() || null,
-      institutionId: context.institutionId,
-      departmentId: context.departmentId,
-      userId: registered.user.id,
-    },
-    include: {
-      user: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          accountStatus: true,
+  const profile = await prisma.$transaction(async (trx) => {
+    await trx.user.update({
+      where: {
+        id: registered.user.id,
+      },
+      data: {
+        accountStatus: AccountStatus.ACTIVE,
+      },
+    });
+
+    return trx.teacherProfile.create({
+      data: {
+        teacherInitial: payload.teacherInitial.trim(),
+        teachersId: payload.teachersId.trim(),
+        designation: payload.designation.trim(),
+        bio: payload.bio?.trim() || null,
+        institutionId: context.institutionId,
+        departmentId: context.departmentId,
+        userId: registered.user.id,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            accountStatus: true,
+          },
         },
       },
-    },
+    });
   });
 
   return profile;
@@ -2059,24 +2070,35 @@ const createStudent = async (userId: string, payload: ICreateStudentPayload) => 
     throw createHttpError(500, "Failed to create student account");
   }
 
-  const profile = await prisma.studentProfile.create({
-    data: {
-      studentsId: payload.studentsId.trim(),
-      bio: payload.bio?.trim() || null,
-      institutionId: context.institutionId,
-      departmentId: context.departmentId,
-      userId: registered.user.id,
-    },
-    include: {
-      user: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          accountStatus: true,
+  const profile = await prisma.$transaction(async (trx) => {
+    await trx.user.update({
+      where: {
+        id: registered.user.id,
+      },
+      data: {
+        accountStatus: AccountStatus.ACTIVE,
+      },
+    });
+
+    return trx.studentProfile.create({
+      data: {
+        studentsId: payload.studentsId.trim(),
+        bio: payload.bio?.trim() || null,
+        institutionId: context.institutionId,
+        departmentId: context.departmentId,
+        userId: registered.user.id,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            accountStatus: true,
+          },
         },
       },
-    },
+    });
   });
 
   return profile;

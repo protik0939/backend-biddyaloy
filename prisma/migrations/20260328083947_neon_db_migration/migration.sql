@@ -47,5 +47,16 @@ ALTER TABLE "section_course_teacher_assignments" ADD CONSTRAINT "section_course_
 -- AddForeignKey
 ALTER TABLE "teacher_application_profiles" ADD CONSTRAINT "teacher_application_profiles_teacherUserId_fkey" FOREIGN KEY ("teacherUserId") REFERENCES "user"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- RenameIndex
-ALTER INDEX "section_course_teacher_assignments_teacherProfileId_createdAt_i" RENAME TO "section_course_teacher_assignments_teacherProfileId_created_idx";
+-- RenameIndex (idempotent for already-renamed environments)
+DO $$
+BEGIN
+	IF EXISTS (
+		SELECT 1
+		FROM pg_indexes
+		WHERE schemaname = 'public'
+			AND indexname = 'section_course_teacher_assignments_teacherProfileId_createdAt_i'
+	) THEN
+		ALTER INDEX "section_course_teacher_assignments_teacherProfileId_createdAt_i"
+			RENAME TO "section_course_teacher_assignments_teacherProfileId_created_idx";
+	END IF;
+END $$;
