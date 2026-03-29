@@ -165,6 +165,10 @@ function toJsonInputValue(value: unknown) {
   return value as any;
 }
 
+type MoneyRow = {
+  amount: unknown;
+};
+
 function hasValidStudentAcademicRecords(records: unknown) {
   if (!Array.isArray(records) || records.length === 0) {
     return false;
@@ -1373,8 +1377,14 @@ const getFeeOverview = async (userId: string) => {
     };
   });
 
-  const totalConfiguredAmount = feeItems.reduce((sum, item) => sum + item.totalFeeAmount, 0);
-  const totalPaidAmount = feeItems.reduce((sum, item) => sum + item.paidAmount, 0);
+  const totalConfiguredAmount = feeItems.reduce(
+    (sum: number, item: { totalFeeAmount: number }) => sum + item.totalFeeAmount,
+    0,
+  );
+  const totalPaidAmount = feeItems.reduce(
+    (sum: number, item: { paidAmount: number }) => sum + item.paidAmount,
+    0,
+  );
 
   return {
     summary: {
@@ -1434,7 +1444,7 @@ const initiateFeePayment = async (userId: string, payload: IInitiateStudentFeePa
   const totalFeeAmount = toMoneyNumber(feeConfiguration.totalFeeAmount);
   const monthlyFeeAmount = toMoneyNumber(feeConfiguration.monthlyFeeAmount);
   const paidAmount = toMoneyNumber(
-    successfulPayments.reduce((sum, item) => sum + toMoneyNumber(item.amount), 0),
+    successfulPayments.reduce((sum: number, item: MoneyRow) => sum + toMoneyNumber(item.amount), 0),
   );
   const dueAmount = toMoneyNumber(Math.max(0, totalFeeAmount - paidAmount));
 
@@ -1733,7 +1743,10 @@ const handleFeeGatewayCallback = async (
   });
 
   const alreadyPaidAmount = toMoneyNumber(
-    successfulSemesterPayments.reduce((sum, item) => sum + toMoneyNumber(item.amount), 0),
+    successfulSemesterPayments.reduce(
+      (sum: number, item: MoneyRow) => sum + toMoneyNumber(item.amount),
+      0,
+    ),
   );
   const currentAmount = toMoneyNumber(payment.amount);
   const totalFeeAmount = toMoneyNumber(payment.feeConfiguration.totalFeeAmount);

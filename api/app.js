@@ -8030,8 +8030,14 @@ var getFeeOverview = async (userId) => {
       currency: configuration.currency
     };
   });
-  const totalConfiguredAmount = feeItems.reduce((sum, item) => sum + item.totalFeeAmount, 0);
-  const totalPaidAmount = feeItems.reduce((sum, item) => sum + item.paidAmount, 0);
+  const totalConfiguredAmount = feeItems.reduce(
+    (sum, item) => sum + item.totalFeeAmount,
+    0
+  );
+  const totalPaidAmount = feeItems.reduce(
+    (sum, item) => sum + item.paidAmount,
+    0
+  );
   return {
     summary: {
       totalConfiguredAmount: toMoneyNumber2(totalConfiguredAmount),
@@ -8324,7 +8330,10 @@ var handleFeeGatewayCallback = async (callbackType, rawQuery) => {
     }
   });
   const alreadyPaidAmount = toMoneyNumber2(
-    successfulSemesterPayments.reduce((sum, item) => sum + toMoneyNumber2(item.amount), 0)
+    successfulSemesterPayments.reduce(
+      (sum, item) => sum + toMoneyNumber2(item.amount),
+      0
+    )
   );
   const currentAmount = toMoneyNumber2(payment.amount);
   const totalFeeAmount = toMoneyNumber2(payment.feeConfiguration.totalFeeAmount);
