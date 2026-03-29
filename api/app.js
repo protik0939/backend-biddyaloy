@@ -10670,6 +10670,9 @@ var isAllowedRequestOrigin = (origin) => {
   if (isNoOriginRequest(origin)) {
     return true;
   }
+  if (typeof origin !== "string") {
+    return false;
+  }
   return originPolicy.isAllowedOrigin(origin);
 };
 var corsOptions = {

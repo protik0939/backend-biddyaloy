@@ -24,6 +24,10 @@ const isAllowedRequestOrigin = (origin: string | undefined) => {
     return true;
   }
 
+  if (typeof origin !== "string") {
+    return false;
+  }
+
   return originPolicy.isAllowedOrigin(origin);
 };
 
