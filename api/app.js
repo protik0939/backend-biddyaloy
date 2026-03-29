@@ -10684,6 +10684,7 @@ var isAllowedRequestOrigin = (origin) => {
   }
   return originPolicy.isAllowedOrigin(origin);
 };
+var isPaymentGatewayCallbackPath = (path3) => path3.startsWith("/api/v1/student/fees/payment/");
 var corsOptions = {
   origin: (origin, callback) => {
     if (isAllowedRequestOrigin(origin)) {
@@ -10697,6 +10698,10 @@ var corsOptions = {
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"]
 };
 app.use((req, res, next) => {
+  if (isPaymentGatewayCallbackPath(req.path)) {
+    next();
+    return;
+  }
   const origin = req.headers.origin;
   if (isAllowedRequestOrigin(origin)) {
     next();
