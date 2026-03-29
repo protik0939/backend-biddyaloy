@@ -10666,9 +10666,15 @@ var isNoOriginRequest = (origin) => {
   }
   return origin.trim().toLowerCase() === "null";
 };
+var isAllowedRequestOrigin = (origin) => {
+  if (isNoOriginRequest(origin)) {
+    return true;
+  }
+  return originPolicy.isAllowedOrigin(origin);
+};
 var corsOptions = {
   origin: (origin, callback) => {
-    if (isNoOriginRequest(origin) || originPolicy.isAllowedOrigin(origin)) {
+    if (isAllowedRequestOrigin(origin)) {
       callback(null, true);
       return;
     }
@@ -10680,7 +10686,7 @@ var corsOptions = {
 };
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (isNoOriginRequest(origin) || originPolicy.isAllowedOrigin(origin)) {
+  if (isAllowedRequestOrigin(origin)) {
     next();
     return;
   }

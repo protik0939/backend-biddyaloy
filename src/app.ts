@@ -19,9 +19,17 @@ const isNoOriginRequest = (origin: string | undefined) => {
   return origin.trim().toLowerCase() === "null";
 };
 
+const isAllowedRequestOrigin = (origin: string | undefined) => {
+  if (isNoOriginRequest(origin)) {
+    return true;
+  }
+
+  return originPolicy.isAllowedOrigin(origin);
+};
+
 const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
-    if (isNoOriginRequest(origin) || originPolicy.isAllowedOrigin(origin)) {
+    if (isAllowedRequestOrigin(origin)) {
       callback(null, true);
       return;
     }
@@ -36,7 +44,7 @@ const corsOptions: cors.CorsOptions = {
 app.use((req, res, next) => {
   const origin = req.headers.origin;
 
-  if (isNoOriginRequest(origin) || originPolicy.isAllowedOrigin(origin)) {
+  if (isAllowedRequestOrigin(origin)) {
     next();
     return;
   }
