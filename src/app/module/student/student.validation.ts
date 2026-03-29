@@ -141,6 +141,32 @@ const updateProfileSchema = z.object({
     }),
 });
 
+const initiateFeePaymentSchema = z.object({
+  body: z
+    .object({
+      semesterId: uuidSchema,
+      paymentMode: z.enum(["MONTHLY", "FULL"]),
+      monthsCount: z.number().int().positive().max(12).optional(),
+    })
+    .refine(
+      (value) => (value.paymentMode === "MONTHLY" ? Boolean(value.monthsCount) : true),
+      {
+        path: ["monthsCount"],
+        message: "monthsCount is required when paymentMode is MONTHLY",
+      },
+    ),
+});
+
+const feeGatewayCallbackSchema = z.object({
+  query: z.object({
+    tran_id: z.string().trim().min(3),
+    val_id: z.string().trim().min(1).optional(),
+    amount: z.string().trim().min(1).optional(),
+    currency: z.string().trim().min(1).optional(),
+    status: z.string().trim().min(1).optional(),
+  }),
+});
+
 export const StudentValidation = {
   createStudentApplicationProfileSchema,
   updateStudentApplicationProfileSchema,
@@ -153,4 +179,6 @@ export const StudentValidation = {
   deleteSubmissionSchema,
   listSubmissionsSchema,
   updateProfileSchema,
+  initiateFeePaymentSchema,
+  feeGatewayCallbackSchema,
 };

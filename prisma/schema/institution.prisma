@@ -23,6 +23,8 @@ model Institution {
     teacherClassworks TeacherClasswork[]
     studentClassworkSubmissions StudentClassworkSubmission[]
     teacherMarks TeacherMark[]
+    feeConfigurations DepartmentSemesterFeeConfiguration[]
+    feePayments StudentFeePayment[]
 
     @@map("institutions")
 }

@@ -11,9 +11,17 @@ const app: Application = express();
 
 const originPolicy = buildOriginPolicy();
 
+const isNoOriginRequest = (origin: string | undefined) => {
+  if (!origin) {
+    return true;
+  }
+
+  return origin.trim().toLowerCase() === "null";
+};
+
 const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
-    if (!origin || originPolicy.isAllowedOrigin(origin)) {
+    if (isNoOriginRequest(origin) || originPolicy.isAllowedOrigin(origin)) {
       callback(null, true);
       return;
     }
@@ -28,7 +36,7 @@ const corsOptions: cors.CorsOptions = {
 app.use((req, res, next) => {
   const origin = req.headers.origin;
 
-  if (!origin || originPolicy.isAllowedOrigin(origin)) {
+  if (isNoOriginRequest(origin) || originPolicy.isAllowedOrigin(origin)) {
     next();
     return;
   }

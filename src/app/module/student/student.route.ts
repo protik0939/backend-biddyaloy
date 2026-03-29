@@ -103,6 +103,16 @@ router.delete(
   StudentController.deleteSubmission,
 );
 
-router.get("/fees", requireSessionRole("STUDENT"), StudentController.getFeePlaceholder);
+router.get("/fees/payment/success", StudentController.handleFeePaymentSuccessRedirect);
+router.get("/fees/payment/fail", StudentController.handleFeePaymentFailureRedirect);
+router.get("/fees/payment/cancel", StudentController.handleFeePaymentCancelRedirect);
+
+router.get("/fees", requireSessionRole("STUDENT"), StudentController.getFeeOverview);
+router.post(
+  "/fees/initiate",
+  requireSessionRole("STUDENT"),
+  validateRequest(StudentValidation.initiateFeePaymentSchema),
+  StudentController.initiateFeePayment,
+);
 
 export const StudentRouter = router;

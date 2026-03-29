@@ -97,3 +97,16 @@ enum StudentAdmissionApplicationStatus {
     APPROVED
     REJECTED
 }
+
+enum StudentFeePaymentMode {
+    MONTHLY
+    FULL
+}
+
+enum StudentFeePaymentStatus {
+    INITIATED
+    PENDING
+    SUCCESS
+    FAILED
+    CANCELLED
+}

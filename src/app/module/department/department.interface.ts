@@ -156,3 +156,14 @@ export interface IReviewStudentAdmissionApplicationPayload {
   studentsId?: string;
   bio?: string;
 }
+
+export interface IUpsertDepartmentFeeConfigurationPayload {
+  semesterId: string;
+  totalFeeAmount: number;
+  monthlyFeeAmount: number;
+  currency?: string;
+}
+
+export interface IListDepartmentFeeConfigurationsQuery {
+  semesterId?: string;
+}

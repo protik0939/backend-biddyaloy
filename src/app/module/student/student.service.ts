@@ -4,9 +4,11 @@ import {
   ICreateStudentAdmissionApplicationPayload,
   ICreateStudentApplicationProfilePayload,
   ICreateStudentSubmissionPayload,
+  IInitiateStudentFeePaymentPayload,
   IListStudentRegisteredCoursesQuery,
   IListStudentResultQuery,
   IListStudentTimelineQuery,
+  IStudentFeeGatewayCallbackQuery,
   IUpdateStudentApplicationProfilePayload,
   IUpdateStudentProfilePayload,
   IUpdateStudentSubmissionPayload,
@@ -31,6 +33,92 @@ function normalizeSearch(search?: string) {
   return value || undefined;
 }
 
+function toMoneyNumber(value: unknown) {
+  const numericValue = Number(value ?? 0);
+  return Number(numericValue.toFixed(2));
+}
+
+function toSafeUpper(value: string | undefined, fallbackValue: string) {
+  const normalized = value?.trim().toUpperCase();
+  return normalized || fallbackValue;
+}
+
+function areMoneyValuesEqual(left: unknown, right: unknown) {
+  return Math.abs(toMoneyNumber(left) - toMoneyNumber(right)) < 0.01;
+}
+
+function createTransactionId() {
+  const randomSuffix = Math.random().toString(36).slice(2, 10).toUpperCase();
+  return `BIDDY-${Date.now()}-${randomSuffix}`;
+}
+
+function getBackendPublicUrl() {
+  return (
+    process.env.BACKEND_PUBLIC_URL?.trim().replace(/\/$/, "") ||
+    "http://localhost:5000"
+  );
+}
+
+function getFrontendPublicUrl() {
+  return (
+    process.env.FRONTEND_PUBLIC_URL?.trim().replace(/\/$/, "") ||
+    "http://localhost:3000"
+  );
+}
+
+function getSslCommerzBaseUrl() {
+  const envBaseUrl = process.env.SSLCOMMERZ_BASE_URL?.trim().replace(/\/$/, "");
+  return envBaseUrl || "https://sandbox.sslcommerz.com";
+}
+
+function getSslCommerzCredentials() {
+  const storeId = process.env.SSLCOMMERZ_STORE_ID?.trim();
+  const storePassword = process.env.SSLCOMMERZ_STORE_PASSWORD?.trim();
+
+  if (!storeId || !storePassword) {
+    throw createHttpError(
+      500,
+      "SSLCommerz credentials are not configured. Set SSLCOMMERZ_STORE_ID and SSLCOMMERZ_STORE_PASSWORD.",
+    );
+  }
+
+  return {
+    storeId,
+    storePassword,
+  };
+}
+
+function normalizeCallbackQuery(query: Record<string, unknown>): IStudentFeeGatewayCallbackQuery {
+  const readValue = (value: unknown) => {
+    if (Array.isArray(value)) {
+      return typeof value[0] === "string" ? value[0] : undefined;
+    }
+
+    return typeof value === "string" ? value : undefined;
+  };
+
+  return {
+    tran_id: readValue(query.tran_id),
+    val_id: readValue(query.val_id),
+    amount: readValue(query.amount),
+    currency: readValue(query.currency),
+    status: readValue(query.status),
+  };
+}
+
+function buildFeeRedirectUrl(status: "success" | "failed" | "cancelled", tranId?: string) {
+  const frontendBase = getFrontendPublicUrl();
+  const searchParams = new URLSearchParams({
+    paymentStatus: status,
+  });
+
+  if (tranId) {
+    searchParams.set("tranId", tranId);
+  }
+
+  return `${frontendBase}/fees?${searchParams.toString()}`;
+}
+
 function isLabCourse(courseTitle: string) {
   const normalized = courseTitle.toLowerCase();
   return normalized.includes("lab") || normalized.includes("laboratory");
@@ -52,6 +140,22 @@ function studentApplicationProfileDelegate() {
 function studentAdmissionApplicationDelegate() {
   return (prisma as any).studentAdmissionApplication;
 }
+
+function feeConfigurationDelegate() {
+  return (prisma as any).departmentSemesterFeeConfiguration;
+}
+
+function feePaymentDelegate() {
+  return (prisma as any).studentFeePayment;
+}
+
+const FEE_PAYMENT_MODE_MONTHLY = "MONTHLY";
+
+const FEE_PAYMENT_STATUS_INITIATED = "INITIATED";
+const FEE_PAYMENT_STATUS_PENDING = "PENDING";
+const FEE_PAYMENT_STATUS_SUCCESS = "SUCCESS";
+const FEE_PAYMENT_STATUS_FAILED = "FAILED";
+const FEE_PAYMENT_STATUS_CANCELLED = "CANCELLED";
 
 function toJsonInputValue(value: unknown) {
   if (value === null || value === undefined) {
@@ -1183,10 +1287,492 @@ const listMyAdmissionApplications = async (userId: string) => {
   });
 };
 
-const getFeePlaceholder = async () => {
+const getFeeOverview = async (userId: string) => {
+  const { profile } = await resolveStudentInstitutionContext(userId);
+
+  if (!profile.departmentId) {
+    throw createHttpError(403, "Student is not assigned to a department yet");
+  }
+
+  const feeConfigurations = await feeConfigurationDelegate().findMany({
+    where: {
+      institutionId: profile.institutionId,
+      departmentId: profile.departmentId,
+      isActive: true,
+    },
+    include: {
+      semester: {
+        select: {
+          id: true,
+          name: true,
+          startDate: true,
+          endDate: true,
+        },
+      },
+    },
+    orderBy: {
+      semester: {
+        startDate: "desc",
+      },
+    },
+  });
+
+  const successfulPayments = await feePaymentDelegate().findMany({
+    where: {
+      studentProfileId: profile.id,
+      status: FEE_PAYMENT_STATUS_SUCCESS,
+    },
+    select: {
+      id: true,
+      semesterId: true,
+      amount: true,
+      monthsCovered: true,
+      paymentMode: true,
+      currency: true,
+      tranId: true,
+      paidAt: true,
+      createdAt: true,
+      gatewayCardType: true,
+      gatewayBankTranId: true,
+      semester: {
+        select: {
+          id: true,
+          name: true,
+          startDate: true,
+          endDate: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  const paidBySemester = new Map<string, number>();
+  for (const payment of successfulPayments) {
+    paidBySemester.set(
+      payment.semesterId,
+      toMoneyNumber((paidBySemester.get(payment.semesterId) ?? 0) + toMoneyNumber(payment.amount)),
+    );
+  }
+
+  const feeItems = feeConfigurations.map((configuration: any) => {
+    const totalFeeAmount = toMoneyNumber(configuration.totalFeeAmount);
+    const monthlyFeeAmount = toMoneyNumber(configuration.monthlyFeeAmount);
+    const paidAmount = toMoneyNumber(paidBySemester.get(configuration.semesterId) ?? 0);
+    const dueAmount = Math.max(0, toMoneyNumber(totalFeeAmount - paidAmount));
+
+    return {
+      feeConfigurationId: configuration.id,
+      semester: configuration.semester,
+      totalFeeAmount,
+      monthlyFeeAmount,
+      paidAmount,
+      dueAmount,
+      currency: configuration.currency,
+    };
+  });
+
+  const totalConfiguredAmount = feeItems.reduce((sum, item) => sum + item.totalFeeAmount, 0);
+  const totalPaidAmount = feeItems.reduce((sum, item) => sum + item.paidAmount, 0);
+
   return {
-    status: "COMING_SOON",
-    message: "Fee payment module will be available soon.",
+    summary: {
+      totalConfiguredAmount: toMoneyNumber(totalConfiguredAmount),
+      totalPaidAmount: toMoneyNumber(totalPaidAmount),
+      totalDueAmount: toMoneyNumber(Math.max(0, totalConfiguredAmount - totalPaidAmount)),
+    },
+    feeItems,
+    paymentHistory: successfulPayments.map((payment: any) => ({
+      ...payment,
+      amount: toMoneyNumber(payment.amount),
+    })),
+  };
+};
+
+const initiateFeePayment = async (userId: string, payload: IInitiateStudentFeePaymentPayload) => {
+  const { profile, user } = await resolveStudentInstitutionContext(userId);
+
+  if (!profile.departmentId) {
+    throw createHttpError(403, "Student is not assigned to a department yet");
+  }
+
+  const feeConfiguration = await feeConfigurationDelegate().findFirst({
+    where: {
+      institutionId: profile.institutionId,
+      departmentId: profile.departmentId,
+      semesterId: payload.semesterId,
+      isActive: true,
+    },
+    include: {
+      semester: {
+        select: {
+          id: true,
+          name: true,
+          startDate: true,
+          endDate: true,
+        },
+      },
+    },
+  });
+
+  if (!feeConfiguration) {
+    throw createHttpError(404, "No fee configuration found for the selected semester/session");
+  }
+
+  const successfulPayments = await feePaymentDelegate().findMany({
+    where: {
+      studentProfileId: profile.id,
+      semesterId: payload.semesterId,
+      status: FEE_PAYMENT_STATUS_SUCCESS,
+    },
+    select: {
+      amount: true,
+    },
+  });
+
+  const totalFeeAmount = toMoneyNumber(feeConfiguration.totalFeeAmount);
+  const monthlyFeeAmount = toMoneyNumber(feeConfiguration.monthlyFeeAmount);
+  const paidAmount = toMoneyNumber(
+    successfulPayments.reduce((sum, item) => sum + toMoneyNumber(item.amount), 0),
+  );
+  const dueAmount = toMoneyNumber(Math.max(0, totalFeeAmount - paidAmount));
+
+  if (dueAmount <= 0) {
+    throw createHttpError(409, "No due amount left for this semester/session");
+  }
+
+  const mode = payload.paymentMode;
+  let requestedAmount = dueAmount;
+  let monthsCovered = 0;
+
+  if (mode === FEE_PAYMENT_MODE_MONTHLY) {
+    const monthsCount = payload.monthsCount ?? 0;
+    if (!monthsCount || monthsCount < 1) {
+      throw createHttpError(400, "monthsCount must be at least 1 for monthly payment");
+    }
+
+    requestedAmount = toMoneyNumber(Math.min(dueAmount, monthlyFeeAmount * monthsCount));
+    monthsCovered = monthsCount;
+  } else {
+    monthsCovered = Math.max(1, Math.ceil(dueAmount / Math.max(monthlyFeeAmount, 1)));
+  }
+
+  if (requestedAmount <= 0) {
+    throw createHttpError(400, "Invalid payment amount");
+  }
+
+  const transactionId = createTransactionId();
+  const backendBaseUrl = getBackendPublicUrl();
+  const { storeId, storePassword } = getSslCommerzCredentials();
+  const sslCommerzBaseUrl = getSslCommerzBaseUrl();
+  const currency = toSafeUpper(feeConfiguration.currency, "BDT");
+
+  const createdPayment = await feePaymentDelegate().create({
+    data: {
+      institutionId: profile.institutionId,
+      departmentId: profile.departmentId,
+      semesterId: payload.semesterId,
+      studentProfileId: profile.id,
+      feeConfigurationId: feeConfiguration.id,
+      paymentMode: mode,
+      status: FEE_PAYMENT_STATUS_INITIATED,
+      monthsCovered,
+      amount: requestedAmount,
+      currency,
+      tranId: transactionId,
+      paymentInitiatedAt: new Date(),
+    },
+  });
+
+  const requestBody = new URLSearchParams({
+    store_id: storeId,
+    store_passwd: storePassword,
+    total_amount: requestedAmount.toFixed(2),
+    currency,
+    tran_id: transactionId,
+    success_url: `${backendBaseUrl}/api/v1/student/fees/payment/success`,
+    fail_url: `${backendBaseUrl}/api/v1/student/fees/payment/fail`,
+    cancel_url: `${backendBaseUrl}/api/v1/student/fees/payment/cancel`,
+    ipn_url: `${backendBaseUrl}/api/v1/student/fees/payment/fail`,
+    shipping_method: "NO",
+    product_name: `Semester Fee - ${feeConfiguration.semester.name}`,
+    product_category: "Education",
+    product_profile: "general",
+    cus_name: user.name,
+    cus_email: user.email,
+    cus_add1: user.presentAddress?.trim() || "N/A",
+    cus_city: "Dhaka",
+    cus_country: "Bangladesh",
+    cus_phone: user.contactNo?.trim() || "01700000000",
+    value_a: createdPayment.id,
+    value_b: profile.id,
+    value_c: payload.semesterId,
+  });
+
+  const response = await fetch(`${sslCommerzBaseUrl}/gwprocess/v4/api.php`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: requestBody.toString(),
+  });
+
+  const gatewayResponse = (await response.json().catch(() => null)) as
+    | {
+        status?: string;
+        failedreason?: string;
+        GatewayPageURL?: string;
+        sessionkey?: string;
+      }
+    | null;
+
+  const gatewayPageUrl = gatewayResponse?.GatewayPageURL;
+  const gatewayStatus = gatewayResponse?.status?.toUpperCase();
+
+  if (!response.ok || !gatewayPageUrl || gatewayStatus !== "SUCCESS") {
+    await feePaymentDelegate().update({
+      where: {
+        id: createdPayment.id,
+      },
+      data: {
+        status: FEE_PAYMENT_STATUS_FAILED,
+        gatewayStatus: gatewayResponse?.status ?? "FAILED",
+        gatewayRawPayload: (gatewayResponse ?? { httpStatus: response.status }) as any,
+      },
+    });
+
+    const failureMessage =
+      gatewayResponse?.failedreason?.trim() ||
+      gatewayResponse?.status?.trim() ||
+      "Unable to initialize SSLCommerz payment session";
+    throw createHttpError(502, failureMessage);
+  }
+
+  await feePaymentDelegate().update({
+    where: {
+      id: createdPayment.id,
+    },
+    data: {
+      status: FEE_PAYMENT_STATUS_PENDING,
+      gatewayStatus: gatewayResponse?.status,
+      gatewaySessionKey: gatewayResponse?.sessionkey || null,
+      gatewayRawPayload: gatewayResponse as any,
+    },
+  });
+
+  return {
+    paymentId: createdPayment.id,
+    tranId: transactionId,
+    paymentUrl: gatewayPageUrl,
+    amount: requestedAmount,
+    currency,
+    paymentMode: mode,
+    monthsCovered,
+  };
+};
+
+const handleFeeGatewayCallback = async (
+  callbackType: "success" | "failed" | "cancelled",
+  rawQuery: Record<string, unknown>,
+) => {
+  const query = normalizeCallbackQuery(rawQuery);
+  const transactionId = query.tran_id?.trim();
+
+  if (!transactionId) {
+    return {
+      redirectUrl: buildFeeRedirectUrl("failed"),
+    };
+  }
+
+  const payment = await feePaymentDelegate().findUnique({
+    where: {
+      tranId: transactionId,
+    },
+    include: {
+      feeConfiguration: {
+        select: {
+          id: true,
+          totalFeeAmount: true,
+        },
+      },
+    },
+  });
+
+  if (!payment) {
+    return {
+      redirectUrl: buildFeeRedirectUrl("failed", transactionId),
+    };
+  }
+
+  if (callbackType === "cancelled") {
+    if (payment.status !== FEE_PAYMENT_STATUS_SUCCESS) {
+      await feePaymentDelegate().update({
+        where: {
+          id: payment.id,
+        },
+        data: {
+          status: FEE_PAYMENT_STATUS_CANCELLED,
+          gatewayStatus: query.status || "CANCELLED",
+          gatewayRawPayload: rawQuery as any,
+        },
+      });
+    }
+
+    return {
+      redirectUrl: buildFeeRedirectUrl("cancelled", transactionId),
+    };
+  }
+
+  if (callbackType === "failed") {
+    if (payment.status !== FEE_PAYMENT_STATUS_SUCCESS) {
+      await feePaymentDelegate().update({
+        where: {
+          id: payment.id,
+        },
+        data: {
+          status: FEE_PAYMENT_STATUS_FAILED,
+          gatewayStatus: query.status || "FAILED",
+          gatewayRawPayload: rawQuery as any,
+        },
+      });
+    }
+
+    return {
+      redirectUrl: buildFeeRedirectUrl("failed", transactionId),
+    };
+  }
+
+  if (payment.status === FEE_PAYMENT_STATUS_SUCCESS) {
+    return {
+      redirectUrl: buildFeeRedirectUrl("success", transactionId),
+    };
+  }
+
+  const validationId = query.val_id?.trim();
+  if (!validationId) {
+    await feePaymentDelegate().update({
+      where: {
+        id: payment.id,
+      },
+      data: {
+        status: FEE_PAYMENT_STATUS_FAILED,
+        gatewayStatus: query.status || "FAILED",
+        gatewayRawPayload: rawQuery as any,
+      },
+    });
+
+    return {
+      redirectUrl: buildFeeRedirectUrl("failed", transactionId),
+    };
+  }
+
+  const { storeId, storePassword } = getSslCommerzCredentials();
+  const sslCommerzBaseUrl = getSslCommerzBaseUrl();
+
+  const validatorParams = new URLSearchParams({
+    val_id: validationId,
+    store_id: storeId,
+    store_passwd: storePassword,
+    format: "json",
+  });
+
+  const validationResponse = await fetch(
+    `${sslCommerzBaseUrl}/validator/api/validationserverAPI.php?${validatorParams.toString()}`,
+  );
+
+  const validationData = (await validationResponse.json().catch(() => null)) as
+    | {
+        status?: string;
+        tran_id?: string;
+        val_id?: string;
+        amount?: string;
+        currency_type?: string;
+        bank_tran_id?: string;
+        card_type?: string;
+      }
+    | null;
+
+  const validationStatus = validationData?.status?.toUpperCase();
+  const isValidStatus = validationStatus === "VALID" || validationStatus === "VALIDATED";
+  const isValidTransaction = validationData?.tran_id === payment.tranId;
+  const isValidAmount = areMoneyValuesEqual(validationData?.amount, payment.amount);
+  const isValidCurrency =
+    toSafeUpper(validationData?.currency_type, payment.currency) === toSafeUpper(payment.currency, "BDT");
+
+  if (!validationResponse.ok || !isValidStatus || !isValidTransaction || !isValidAmount || !isValidCurrency) {
+    await feePaymentDelegate().update({
+      where: {
+        id: payment.id,
+      },
+      data: {
+        status: FEE_PAYMENT_STATUS_FAILED,
+        gatewayStatus: validationData?.status || query.status || "FAILED",
+        gatewayValId: validationData?.val_id || validationId,
+        gatewayRawPayload: (validationData ?? rawQuery) as any,
+      },
+    });
+
+    return {
+      redirectUrl: buildFeeRedirectUrl("failed", transactionId),
+    };
+  }
+
+  const successfulSemesterPayments = await feePaymentDelegate().findMany({
+    where: {
+      studentProfileId: payment.studentProfileId,
+      semesterId: payment.semesterId,
+      status: FEE_PAYMENT_STATUS_SUCCESS,
+      id: {
+        not: payment.id,
+      },
+    },
+    select: {
+      amount: true,
+    },
+  });
+
+  const alreadyPaidAmount = toMoneyNumber(
+    successfulSemesterPayments.reduce((sum, item) => sum + toMoneyNumber(item.amount), 0),
+  );
+  const currentAmount = toMoneyNumber(payment.amount);
+  const totalFeeAmount = toMoneyNumber(payment.feeConfiguration.totalFeeAmount);
+
+  if (alreadyPaidAmount + currentAmount > totalFeeAmount + 0.01) {
+    await feePaymentDelegate().update({
+      where: {
+        id: payment.id,
+      },
+      data: {
+        status: FEE_PAYMENT_STATUS_FAILED,
+        gatewayStatus: "OVERPAYMENT_BLOCKED",
+        gatewayValId: validationData?.val_id || validationId,
+        gatewayRawPayload: validationData as any,
+      },
+    });
+
+    return {
+      redirectUrl: buildFeeRedirectUrl("failed", transactionId),
+    };
+  }
+
+  await feePaymentDelegate().update({
+    where: {
+      id: payment.id,
+    },
+    data: {
+      status: FEE_PAYMENT_STATUS_SUCCESS,
+      paidAt: new Date(),
+      gatewayStatus: validationData?.status || "VALID",
+      gatewayValId: validationData?.val_id || validationId,
+      gatewayBankTranId: validationData?.bank_tran_id || null,
+      gatewayCardType: validationData?.card_type || null,
+      gatewayRawPayload: validationData as any,
+    },
+  });
+
+  return {
+    redirectUrl: buildFeeRedirectUrl("success", transactionId),
   };
 };
 
@@ -1206,5 +1792,7 @@ export const StudentService = {
   createSubmission,
   updateSubmission,
   deleteSubmission,
-  getFeePlaceholder,
+  getFeeOverview,
+  initiateFeePayment,
+  handleFeeGatewayCallback,
 };

@@ -1,0 +1,58 @@
+model DepartmentSemesterFeeConfiguration {
+    id               String   @id @default(uuid())
+    institutionId    String
+    institution      Institution @relation(fields: [institutionId], references: [id])
+    departmentId     String
+    department       Department @relation(fields: [departmentId], references: [id])
+    semesterId       String
+    semester         Semester @relation(fields: [semesterId], references: [id])
+    totalFeeAmount   Decimal  @db.Decimal(12, 2)
+    monthlyFeeAmount Decimal  @db.Decimal(12, 2)
+    currency         String   @default("BDT")
+    isActive         Boolean  @default(true)
+    createdAt        DateTime @default(now())
+    updatedAt        DateTime @updatedAt
+
+    feePayments      StudentFeePayment[]
+
+    @@unique([departmentId, semesterId])
+    @@index([institutionId, departmentId])
+    @@index([semesterId])
+    @@map("department_semester_fee_configurations")
+}
+
+model StudentFeePayment {
+    id                 String   @id @default(uuid())
+    institutionId      String
+    institution        Institution @relation(fields: [institutionId], references: [id])
+    departmentId       String
+    department         Department @relation(fields: [departmentId], references: [id])
+    semesterId         String
+    semester           Semester @relation(fields: [semesterId], references: [id])
+    studentProfileId   String
+    studentProfile     StudentProfile @relation(fields: [studentProfileId], references: [id])
+    feeConfigurationId String
+    feeConfiguration   DepartmentSemesterFeeConfiguration @relation(fields: [feeConfigurationId], references: [id])
+    paymentMode        StudentFeePaymentMode
+    status             StudentFeePaymentStatus @default(INITIATED)
+    monthsCovered      Int
+    amount             Decimal  @db.Decimal(12, 2)
+    currency           String   @default("BDT")
+    gatewayName        String   @default("SSLCOMMERZ")
+    tranId             String   @unique
+    gatewaySessionKey  String?  @unique
+    gatewayValId       String?
+    gatewayBankTranId  String?
+    gatewayCardType    String?
+    gatewayStatus      String?
+    gatewayRawPayload  Json?
+    paymentInitiatedAt DateTime @default(now())
+    paidAt             DateTime?
+    createdAt          DateTime @default(now())
+    updatedAt          DateTime @updatedAt
+
+    @@index([studentProfileId, semesterId])
+    @@index([departmentId, semesterId])
+    @@index([status])
+    @@map("student_fee_payments")
+}

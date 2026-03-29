@@ -18,6 +18,8 @@ import {
   ICreateTeacherPayload,
   IListStudentAdmissionApplicationsQuery,
   IReviewStudentAdmissionApplicationPayload,
+  IListDepartmentFeeConfigurationsQuery,
+  IUpsertDepartmentFeeConfigurationPayload,
   IUpdateBatchPayload,
   IUpdateCoursePayload,
   IUpdateCourseRegistrationPayload,
@@ -40,6 +42,21 @@ function normalizeSearch(search?: string) {
   const value = search?.trim();
   return value || undefined;
 }
+
+function toMoneyNumber(value: unknown) {
+  const numericValue = Number(value ?? 0);
+  return Number(numericValue.toFixed(2));
+}
+
+function departmentSemesterFeeConfigurationDelegate() {
+  return (prisma as any).departmentSemesterFeeConfiguration;
+}
+
+function studentFeePaymentDelegate() {
+  return (prisma as any).studentFeePayment;
+}
+
+const FEE_PAYMENT_STATUS_SUCCESS = "SUCCESS";
 
 async function resolveDepartmentContext(userId: string, departmentId?: string) {
   const adminProfile = await prisma.adminProfile.findUnique({
@@ -2498,6 +2515,271 @@ const reviewStudentAdmissionApplication = async (
   });
 };
 
+const upsertFeeConfiguration = async (
+  userId: string,
+  payload: IUpsertDepartmentFeeConfigurationPayload,
+) => {
+  const context = await resolveDepartmentContext(userId);
+
+  if (payload.monthlyFeeAmount > payload.totalFeeAmount) {
+    throw createHttpError(400, "monthlyFeeAmount cannot exceed totalFeeAmount");
+  }
+
+  const semester = await prisma.semester.findFirst({
+    where: {
+      id: payload.semesterId,
+      institutionId: context.institutionId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!semester) {
+    throw createHttpError(404, "Semester not found for this institution");
+  }
+
+  return departmentSemesterFeeConfigurationDelegate().upsert({
+    where: {
+      departmentId_semesterId: {
+        departmentId: context.departmentId,
+        semesterId: payload.semesterId,
+      },
+    },
+    create: {
+      institutionId: context.institutionId,
+      departmentId: context.departmentId,
+      semesterId: payload.semesterId,
+      totalFeeAmount: payload.totalFeeAmount,
+      monthlyFeeAmount: payload.monthlyFeeAmount,
+      currency: payload.currency?.trim().toUpperCase() || "BDT",
+      isActive: true,
+    },
+    update: {
+      totalFeeAmount: payload.totalFeeAmount,
+      monthlyFeeAmount: payload.monthlyFeeAmount,
+      currency: payload.currency?.trim().toUpperCase() || undefined,
+      isActive: true,
+    },
+    include: {
+      semester: {
+        select: {
+          id: true,
+          name: true,
+          startDate: true,
+          endDate: true,
+        },
+      },
+    },
+  });
+};
+
+const listFeeConfigurations = async (
+  userId: string,
+  query: IListDepartmentFeeConfigurationsQuery,
+) => {
+  const context = await resolveDepartmentContext(userId);
+
+  const configurations = await departmentSemesterFeeConfigurationDelegate().findMany({
+    where: {
+      institutionId: context.institutionId,
+      departmentId: context.departmentId,
+      semesterId: query.semesterId,
+      isActive: true,
+    },
+    include: {
+      semester: {
+        select: {
+          id: true,
+          name: true,
+          startDate: true,
+          endDate: true,
+        },
+      },
+    },
+    orderBy: {
+      semester: {
+        startDate: "desc",
+      },
+    },
+  });
+
+  if (configurations.length === 0) {
+    return [];
+  }
+
+  const configurationIds = configurations.map((item: any) => item.id);
+  const payments = await studentFeePaymentDelegate().findMany({
+    where: {
+      feeConfigurationId: {
+        in: configurationIds,
+      },
+      status: FEE_PAYMENT_STATUS_SUCCESS,
+    },
+    select: {
+      feeConfigurationId: true,
+      amount: true,
+      studentProfileId: true,
+    },
+  });
+
+  const paymentStats = new Map<string, { totalPaidAmount: number; studentIds: Set<string> }>();
+  for (const payment of payments) {
+    const existing = paymentStats.get(payment.feeConfigurationId) ?? {
+      totalPaidAmount: 0,
+      studentIds: new Set<string>(),
+    };
+
+    existing.totalPaidAmount += toMoneyNumber(payment.amount);
+    existing.studentIds.add(payment.studentProfileId);
+    paymentStats.set(payment.feeConfigurationId, existing);
+  }
+
+  return configurations.map((item: any) => {
+    const stats = paymentStats.get(item.id);
+    return {
+      ...item,
+      totalPaidAmount: toMoneyNumber(stats?.totalPaidAmount ?? 0),
+      totalStudentsPaid: stats?.studentIds.size ?? 0,
+      outstandingAmount: Math.max(
+        0,
+        toMoneyNumber(item.totalFeeAmount) - toMoneyNumber(stats?.totalPaidAmount ?? 0),
+      ),
+    };
+  });
+};
+
+const getStudentPaymentInfoByStudentId = async (
+  userId: string,
+  studentsId: string,
+  semesterId?: string,
+) => {
+  const context = await resolveDepartmentContext(userId);
+  const normalizedStudentId = studentsId.trim();
+
+  const student = await prisma.studentProfile.findFirst({
+    where: {
+      studentsId: {
+        equals: normalizedStudentId,
+        mode: "insensitive",
+      },
+      institutionId: context.institutionId,
+      departmentId: context.departmentId,
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          accountStatus: true,
+        },
+      },
+    },
+  });
+
+  if (!student) {
+    throw createHttpError(404, "Student not found for this department");
+  }
+
+  const configurations = await departmentSemesterFeeConfigurationDelegate().findMany({
+    where: {
+      institutionId: context.institutionId,
+      departmentId: context.departmentId,
+      semesterId,
+      isActive: true,
+    },
+    include: {
+      semester: {
+        select: {
+          id: true,
+          name: true,
+          startDate: true,
+          endDate: true,
+        },
+      },
+    },
+    orderBy: {
+      semester: {
+        startDate: "desc",
+      },
+    },
+  });
+
+  const payments = await studentFeePaymentDelegate().findMany({
+    where: {
+      institutionId: context.institutionId,
+      departmentId: context.departmentId,
+      studentProfileId: student.id,
+      semesterId,
+    },
+    select: {
+      id: true,
+      semesterId: true,
+      amount: true,
+      monthsCovered: true,
+      paymentMode: true,
+      status: true,
+      currency: true,
+      tranId: true,
+      paidAt: true,
+      createdAt: true,
+      gatewayCardType: true,
+      gatewayBankTranId: true,
+      semester: {
+        select: {
+          id: true,
+          name: true,
+          startDate: true,
+          endDate: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  const paidBySemester = new Map<string, number>();
+  for (const payment of payments) {
+    if (payment.status !== FEE_PAYMENT_STATUS_SUCCESS) {
+      continue;
+    }
+
+    paidBySemester.set(
+      payment.semesterId,
+      toMoneyNumber((paidBySemester.get(payment.semesterId) ?? 0) + toMoneyNumber(payment.amount)),
+    );
+  }
+
+  const feeSummaries = configurations.map((configuration: any) => {
+    const total = toMoneyNumber(configuration.totalFeeAmount);
+    const paid = toMoneyNumber(paidBySemester.get(configuration.semesterId) ?? 0);
+    return {
+      feeConfigurationId: configuration.id,
+      semester: configuration.semester,
+      totalFeeAmount: total,
+      monthlyFeeAmount: toMoneyNumber(configuration.monthlyFeeAmount),
+      currency: configuration.currency,
+      paidAmount: paid,
+      dueAmount: Math.max(0, toMoneyNumber(total - paid)),
+    };
+  });
+
+  return {
+    student: {
+      id: student.id,
+      studentsId: student.studentsId,
+      user: student.user,
+    },
+    feeSummaries,
+    paymentHistory: payments.map((payment: any) => ({
+      ...payment,
+      amount: toMoneyNumber(payment.amount),
+    })),
+  };
+};
+
 export const DepartmentService = {
   getDepartmentProfile,
   updateDepartmentProfile,
@@ -2534,4 +2816,7 @@ export const DepartmentService = {
   getDashboardSummary,
   listStudentAdmissionApplications,
   reviewStudentAdmissionApplication,
+  upsertFeeConfiguration,
+  listFeeConfigurations,
+  getStudentPaymentInfoByStudentId,
 };

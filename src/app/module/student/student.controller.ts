@@ -223,15 +223,52 @@ const deleteSubmission = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
-const getFeePlaceholder = catchAsync(async (_req: Request, res: Response) => {
-  const result = await StudentService.getFeePlaceholder();
+const getFeeOverview = catchAsync(async (_req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await StudentService.getFeeOverview(user.id);
 
   sendResponse(res, {
     httpStatusCode: 200,
     success: true,
-    message: "Fee module status fetched successfully",
+    message: "Student fee overview fetched successfully",
     data: result,
   });
+});
+
+const initiateFeePayment = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await StudentService.initiateFeePayment(user.id, req.body);
+
+  sendResponse(res, {
+    httpStatusCode: 201,
+    success: true,
+    message: "Fee payment initiated successfully",
+    data: result,
+  });
+});
+
+const handleFeePaymentSuccessRedirect = catchAsync(async (req: Request, res: Response) => {
+  const result = await StudentService.handleFeeGatewayCallback(
+    "success",
+    req.query as Record<string, unknown>,
+  );
+  res.redirect(302, result.redirectUrl);
+});
+
+const handleFeePaymentFailureRedirect = catchAsync(async (req: Request, res: Response) => {
+  const result = await StudentService.handleFeeGatewayCallback(
+    "failed",
+    req.query as Record<string, unknown>,
+  );
+  res.redirect(302, result.redirectUrl);
+});
+
+const handleFeePaymentCancelRedirect = catchAsync(async (req: Request, res: Response) => {
+  const result = await StudentService.handleFeeGatewayCallback(
+    "cancelled",
+    req.query as Record<string, unknown>,
+  );
+  res.redirect(302, result.redirectUrl);
 });
 
 export const StudentController = {
@@ -250,5 +287,9 @@ export const StudentController = {
   createSubmission,
   updateSubmission,
   deleteSubmission,
-  getFeePlaceholder,
+  getFeeOverview,
+  initiateFeePayment,
+  handleFeePaymentSuccessRedirect,
+  handleFeePaymentFailureRedirect,
+  handleFeePaymentCancelRedirect,
 };

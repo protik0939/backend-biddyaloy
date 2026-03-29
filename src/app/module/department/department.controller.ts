@@ -507,6 +507,48 @@ const reviewStudentAdmissionApplication = catchAsync(async (req: Request, res: R
   });
 });
 
+const listFeeConfigurations = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const semesterId = typeof req.query.semesterId === "string" ? req.query.semesterId : undefined;
+  const result = await DepartmentService.listFeeConfigurations(user.id, { semesterId });
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Department fee configurations fetched successfully",
+    data: result,
+  });
+});
+
+const upsertFeeConfiguration = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await DepartmentService.upsertFeeConfiguration(user.id, req.body);
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Department fee configuration saved successfully",
+    data: result,
+  });
+});
+
+const getStudentPaymentInfoByStudentId = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const semesterId = typeof req.query.semesterId === "string" ? req.query.semesterId : undefined;
+  const result = await DepartmentService.getStudentPaymentInfoByStudentId(
+    user.id,
+    readParam(req.params.studentsId),
+    semesterId,
+  );
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Student payment info fetched successfully",
+    data: result,
+  });
+});
+
 export const DepartmentController = {
   getDepartmentProfile,
   getDashboardSummary,
@@ -543,4 +585,7 @@ export const DepartmentController = {
   updateStudent,
   listStudentAdmissionApplications,
   reviewStudentAdmissionApplication,
+  listFeeConfigurations,
+  upsertFeeConfiguration,
+  getStudentPaymentInfoByStudentId,
 };

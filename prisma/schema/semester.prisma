@@ -6,4 +6,6 @@ model Semester {
     institutionId String
     sections      Section[]
     courseRegistrations CourseRegistration[]
+    feeConfigurations DepartmentSemesterFeeConfiguration[]
+    feePayments StudentFeePayment[]
 }

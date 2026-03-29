@@ -315,4 +315,28 @@ export const DepartmentValidation = {
         },
       ),
   }),
+
+  upsertFeeConfigurationSchema: z.object({
+    body: z.object({
+      semesterId: uuidSchema,
+      totalFeeAmount: z.number().positive().max(100000000),
+      monthlyFeeAmount: z.number().positive().max(100000000),
+      currency: z.string().trim().min(3).max(10).optional(),
+    }),
+  }),
+
+  listFeeConfigurationsSchema: z.object({
+    query: z.object({
+      semesterId: uuidSchema.optional(),
+    }),
+  }),
+
+  getStudentPaymentInfoSchema: z.object({
+    params: z.object({
+      studentsId: z.string("studentsId must be a string").trim().min(2).max(50),
+    }),
+    query: z.object({
+      semesterId: uuidSchema.optional(),
+    }),
+  }),
 };

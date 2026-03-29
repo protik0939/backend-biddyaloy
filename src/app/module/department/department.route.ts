@@ -184,4 +184,25 @@ router.patch(
   DepartmentController.reviewStudentAdmissionApplication,
 );
 
+router.get(
+  "/fees/configurations",
+  requireSessionRole("ADMIN", "DEPARTMENT"),
+  validateRequest(DepartmentValidation.listFeeConfigurationsSchema),
+  DepartmentController.listFeeConfigurations,
+);
+
+router.post(
+  "/fees/configurations",
+  requireSessionRole("ADMIN", "DEPARTMENT"),
+  validateRequest(DepartmentValidation.upsertFeeConfigurationSchema),
+  DepartmentController.upsertFeeConfiguration,
+);
+
+router.get(
+  "/fees/students/:studentsId",
+  requireSessionRole("ADMIN", "DEPARTMENT"),
+  validateRequest(DepartmentValidation.getStudentPaymentInfoSchema),
+  DepartmentController.getStudentPaymentInfoByStudentId,
+);
+
 export const DepartmentRouter = router;

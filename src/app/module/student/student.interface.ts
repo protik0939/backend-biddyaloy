@@ -63,3 +63,17 @@ export interface IUpdateStudentProfilePayload {
   bloodGroup?: string;
   gender?: string;
 }
+
+export interface IInitiateStudentFeePaymentPayload {
+  semesterId: string;
+  paymentMode: "MONTHLY" | "FULL";
+  monthsCount?: number;
+}
+
+export interface IStudentFeeGatewayCallbackQuery {
+  tran_id?: string;
+  val_id?: string;
+  amount?: string;
+  currency?: string;
+  status?: string;
+}
