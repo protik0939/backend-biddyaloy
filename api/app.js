@@ -8594,24 +8594,28 @@ var initiateFeePayment2 = catchAsync(async (req, res) => {
     data: result
   });
 });
+var readFeeGatewayCallbackPayload = (req) => ({
+  ...req.query,
+  ...req.body
+});
 var handleFeePaymentSuccessRedirect = catchAsync(async (req, res) => {
   const result = await StudentService.handleFeeGatewayCallback(
     "success",
-    req.query
+    readFeeGatewayCallbackPayload(req)
   );
   res.redirect(302, result.redirectUrl);
 });
 var handleFeePaymentFailureRedirect = catchAsync(async (req, res) => {
   const result = await StudentService.handleFeeGatewayCallback(
     "failed",
-    req.query
+    readFeeGatewayCallbackPayload(req)
   );
   res.redirect(302, result.redirectUrl);
 });
 var handleFeePaymentCancelRedirect = catchAsync(async (req, res) => {
   const result = await StudentService.handleFeeGatewayCallback(
     "cancelled",
-    req.query
+    readFeeGatewayCallbackPayload(req)
   );
   res.redirect(302, result.redirectUrl);
 });
@@ -8862,6 +8866,9 @@ router8.delete(
 router8.get("/fees/payment/success", StudentController.handleFeePaymentSuccessRedirect);
 router8.get("/fees/payment/fail", StudentController.handleFeePaymentFailureRedirect);
 router8.get("/fees/payment/cancel", StudentController.handleFeePaymentCancelRedirect);
+router8.post("/fees/payment/success", StudentController.handleFeePaymentSuccessRedirect);
+router8.post("/fees/payment/fail", StudentController.handleFeePaymentFailureRedirect);
+router8.post("/fees/payment/cancel", StudentController.handleFeePaymentCancelRedirect);
 router8.get("/fees", requireSessionRole("STUDENT"), StudentController.getFeeOverview);
 router8.post(
   "/fees/initiate",

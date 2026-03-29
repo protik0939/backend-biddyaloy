@@ -247,10 +247,15 @@ const initiateFeePayment = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const readFeeGatewayCallbackPayload = (req: Request) => ({
+  ...(req.query as Record<string, unknown>),
+  ...(req.body as Record<string, unknown>),
+});
+
 const handleFeePaymentSuccessRedirect = catchAsync(async (req: Request, res: Response) => {
   const result = await StudentService.handleFeeGatewayCallback(
     "success",
-    req.query as Record<string, unknown>,
+    readFeeGatewayCallbackPayload(req),
   );
   res.redirect(302, result.redirectUrl);
 });
@@ -258,7 +263,7 @@ const handleFeePaymentSuccessRedirect = catchAsync(async (req: Request, res: Res
 const handleFeePaymentFailureRedirect = catchAsync(async (req: Request, res: Response) => {
   const result = await StudentService.handleFeeGatewayCallback(
     "failed",
-    req.query as Record<string, unknown>,
+    readFeeGatewayCallbackPayload(req),
   );
   res.redirect(302, result.redirectUrl);
 });
@@ -266,7 +271,7 @@ const handleFeePaymentFailureRedirect = catchAsync(async (req: Request, res: Res
 const handleFeePaymentCancelRedirect = catchAsync(async (req: Request, res: Response) => {
   const result = await StudentService.handleFeeGatewayCallback(
     "cancelled",
-    req.query as Record<string, unknown>,
+    readFeeGatewayCallbackPayload(req),
   );
   res.redirect(302, result.redirectUrl);
 });

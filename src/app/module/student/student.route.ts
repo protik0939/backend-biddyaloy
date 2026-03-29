@@ -106,6 +106,9 @@ router.delete(
 router.get("/fees/payment/success", StudentController.handleFeePaymentSuccessRedirect);
 router.get("/fees/payment/fail", StudentController.handleFeePaymentFailureRedirect);
 router.get("/fees/payment/cancel", StudentController.handleFeePaymentCancelRedirect);
+router.post("/fees/payment/success", StudentController.handleFeePaymentSuccessRedirect);
+router.post("/fees/payment/fail", StudentController.handleFeePaymentFailureRedirect);
+router.post("/fees/payment/cancel", StudentController.handleFeePaymentCancelRedirect);
 
 router.get("/fees", requireSessionRole("STUDENT"), StudentController.getFeeOverview);
 router.post(
