@@ -59,6 +59,23 @@ export const InstitutionAdminValidation = {
       }),
   }),
 
+  upsertSslCommerzCredentialSchema: z.object({
+    body: z
+      .object({
+        storeId: z.string("storeId must be a string").trim().min(2).max(120).optional(),
+        storePassword: z
+          .string("storePassword must be a string")
+          .trim()
+          .min(4)
+          .max(200)
+          .optional(),
+        baseUrl: z.url("baseUrl must be a valid URL").trim().max(400).optional(),
+      })
+      .refine((value) => Object.keys(value).length > 0, {
+        message: "At least one field is required",
+      }),
+  }),
+
   createSubAdminSchema: z.object({
     body: z.object({
       name: z

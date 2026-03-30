@@ -1,0 +1,24 @@
+model InstitutionSubscription {
+  id String @id @default(uuid())
+
+  institutionId String
+  institution Institution @relation(fields: [institutionId], references: [id])
+
+  sourceApplicationId String?
+  sourceApplication InstitutionApplication? @relation(fields: [sourceApplicationId], references: [id])
+
+  plan InstitutionSubscriptionPlan
+  status InstitutionSubscriptionStatus @default(ACTIVE)
+  amount Decimal @db.Decimal(12, 2)
+  currency String @default("BDT")
+  monthsCovered Int
+  startsAt DateTime
+  endsAt DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([institutionId, status, endsAt])
+  @@index([sourceApplicationId])
+  @@map("institution_subscriptions")
+}

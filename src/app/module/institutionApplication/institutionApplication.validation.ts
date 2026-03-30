@@ -36,4 +36,18 @@ export const InstitutionApplicationValidation = {
         },
       ),
   }),
+  initiateSubscriptionPaymentSchema: z.object({
+    body: z.object({
+      plan: z.enum(["MONTHLY", "HALF_YEARLY", "YEARLY"]),
+    }),
+  }),
+  paymentCallbackQuerySchema: z.object({
+    query: z.object({
+      tran_id: z.string().trim().min(1),
+      val_id: z.string().trim().optional(),
+      status: z.string().trim().optional(),
+      bank_tran_id: z.string().trim().optional(),
+      card_type: z.string().trim().optional(),
+    }),
+  }),
 };

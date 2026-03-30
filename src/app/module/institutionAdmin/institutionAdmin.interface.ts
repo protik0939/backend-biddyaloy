@@ -35,3 +35,9 @@ export interface IUpdateInstitutionAdminProfilePayload {
   bloodGroup?: string;
   gender?: string;
 }
+
+export interface IUpsertInstitutionSslCommerzCredentialPayload {
+  storeId?: string;
+  storePassword?: string;
+  baseUrl?: string;
+}

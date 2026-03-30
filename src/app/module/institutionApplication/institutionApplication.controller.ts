@@ -53,6 +53,96 @@ const getSuperAdminSummary = async (_req: Request, res: Response) => {
   });
 };
 
+const getSubscriptionPricing = async (_req: Request, res: Response) => {
+  const result = await InstitutionApplicationService.getSubscriptionPricing();
+
+  res.status(200).json({
+    success: true,
+    data: result,
+  });
+};
+
+const initiateSubscriptionPayment = async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const applicationIdParam = req.params.applicationId;
+  const applicationId = Array.isArray(applicationIdParam)
+    ? applicationIdParam[0]
+    : applicationIdParam;
+
+  if (!applicationId) {
+    return res.status(400).json({
+      success: false,
+      message: "Application id is required",
+    });
+  }
+
+  const result = await InstitutionApplicationService.initiateSubscriptionPayment(
+    user.id,
+    applicationId,
+    req.body,
+  );
+
+  res.status(200).json({
+    success: true,
+    message: "Subscription payment initiated successfully",
+    data: result,
+  });
+};
+
+const readSubscriptionCallbackPayload = (req: Request) => ({
+  ...req.query,
+  ...req.body,
+});
+
+const handleSubscriptionPaymentSuccessRedirect = async (req: Request, res: Response) => {
+  const result = await InstitutionApplicationService.handleSubscriptionPaymentCallback(
+    "success",
+    readSubscriptionCallbackPayload(req),
+  );
+
+  res.redirect(result.redirectUrl);
+};
+
+const handleSubscriptionPaymentFailureRedirect = async (req: Request, res: Response) => {
+  const result = await InstitutionApplicationService.handleSubscriptionPaymentCallback(
+    "failed",
+    readSubscriptionCallbackPayload(req),
+  );
+
+  res.redirect(result.redirectUrl);
+};
+
+const handleSubscriptionPaymentCancelRedirect = async (req: Request, res: Response) => {
+  const result = await InstitutionApplicationService.handleSubscriptionPaymentCallback(
+    "cancelled",
+    readSubscriptionCallbackPayload(req),
+  );
+
+  res.redirect(result.redirectUrl);
+};
+
+const listInstitutionStudentPaymentsForSuperAdmin = async (req: Request, res: Response) => {
+  const institutionId =
+    typeof req.query.institutionId === "string" ? req.query.institutionId : undefined;
+  const result =
+    await InstitutionApplicationService.listInstitutionStudentPaymentsForSuperAdmin(institutionId);
+
+  res.status(200).json({
+    success: true,
+    data: result,
+  });
+};
+
+const listInstitutionStudentPaymentsForAdmin = async (_req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await InstitutionApplicationService.listInstitutionStudentPaymentsForAdmin(user.id);
+
+  res.status(200).json({
+    success: true,
+    data: result,
+  });
+};
+
 const review = async (req: Request, res: Response) => {
   const user = res.locals.authUser as { id: string };
   const applicationIdParam = req.params.applicationId;
@@ -81,5 +171,12 @@ export const InstitutionApplicationController = {
   myApplications,
   listForSuperAdmin,
   getSuperAdminSummary,
+  getSubscriptionPricing,
+  initiateSubscriptionPayment,
+  handleSubscriptionPaymentSuccessRedirect,
+  handleSubscriptionPaymentFailureRedirect,
+  handleSubscriptionPaymentCancelRedirect,
+  listInstitutionStudentPaymentsForSuperAdmin,
+  listInstitutionStudentPaymentsForAdmin,
   review,
 };

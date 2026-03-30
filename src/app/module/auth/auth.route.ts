@@ -42,6 +42,12 @@ router.post(
 	AuthController.changePassword,
 );
 router.get(
+	"/access-status",
+	requireSessionRole("SUPERADMIN", "ADMIN", "FACULTY", "DEPARTMENT", "TEACHER", "STUDENT"),
+	AuthController.getAccessStatus,
+);
+
+router.get(
 	"/me",
 	requireSessionRole("SUPERADMIN", "ADMIN", "TEACHER", "STUDENT"),
 	AuthController.getCurrentUserProfile,

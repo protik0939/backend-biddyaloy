@@ -12,3 +12,7 @@ export interface IReviewInstitutionApplication {
   status: Extract<InstitutionApplicationStatus, "APPROVED" | "REJECTED">;
   rejectionReason?: string;
 }
+
+export interface IInitiateInstitutionSubscriptionPayment {
+  plan: "MONTHLY" | "HALF_YEARLY" | "YEARLY";
+}

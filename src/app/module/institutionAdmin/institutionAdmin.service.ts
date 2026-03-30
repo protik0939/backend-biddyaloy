@@ -2,8 +2,15 @@ import { AccountStatus, AdminRole, UserRole } from "../../../generated/prisma/en
 import { auth } from "../../lib/auth";
 import { prisma } from "../../lib/prisma";
 import {
+  decryptCredentialValue,
+  encryptCredentialValue,
+  hashCredentialValue,
+  maskCredentialValue,
+} from "../../shared/credentialSecurity";
+import {
   ICreateInstitutionSemesterPayload,
   ICreateInstitutionSubAdminPayload,
+  IUpsertInstitutionSslCommerzCredentialPayload,
   IUpdateInstitutionAdminProfilePayload,
   IUpdateInstitutionSemesterPayload,
 } from "./institutionAdmin.interface";
@@ -209,6 +216,123 @@ const updateProfile = async (
   });
 
   return getDashboardSummary(creatorUserId);
+};
+
+const getSslCommerzCredential = async (creatorUserId: string) => {
+  const context = await resolveInstitutionAdminContext(creatorUserId);
+
+  const existing = await (prisma as any).institutionPaymentGatewayCredential.findUnique({
+    where: {
+      institutionId: context.institutionId,
+    },
+    select: {
+      sslCommerzStoreIdEncrypted: true,
+      sslCommerzBaseUrlEncrypted: true,
+      sslCommerzStorePasswordHash: true,
+      updatedAt: true,
+      isActive: true,
+    },
+  });
+
+  if (!existing) {
+    return {
+      isConfigured: false,
+      storeIdMasked: null,
+      hasStorePassword: false,
+      baseUrl: null,
+      updatedAt: null,
+      isActive: false,
+    };
+  }
+
+  const storeId = decryptCredentialValue(existing.sslCommerzStoreIdEncrypted);
+  const baseUrl = decryptCredentialValue(existing.sslCommerzBaseUrlEncrypted);
+
+  return {
+    isConfigured: true,
+    storeIdMasked: maskCredentialValue(storeId),
+    hasStorePassword: Boolean(existing.sslCommerzStorePasswordHash),
+    baseUrl,
+    updatedAt: existing.updatedAt,
+    isActive: existing.isActive,
+  };
+};
+
+const upsertSslCommerzCredential = async (
+  creatorUserId: string,
+  payload: IUpsertInstitutionSslCommerzCredentialPayload,
+) => {
+  const context = await resolveInstitutionAdminContext(creatorUserId);
+
+  const existing = await (prisma as any).institutionPaymentGatewayCredential.findUnique({
+    where: {
+      institutionId: context.institutionId,
+    },
+    select: {
+      id: true,
+      sslCommerzStoreIdEncrypted: true,
+      sslCommerzStorePasswordEncrypted: true,
+      sslCommerzBaseUrlEncrypted: true,
+    },
+  });
+
+  const nextStoreIdInput = payload.storeId?.trim();
+  const nextStorePasswordInput = payload.storePassword?.trim();
+  const nextBaseUrlInput = payload.baseUrl?.trim();
+
+  let resolvedStoreId = nextStoreIdInput;
+  let resolvedStorePassword = nextStorePasswordInput;
+  let resolvedBaseUrl = nextBaseUrlInput;
+
+  if (existing) {
+    resolvedStoreId = resolvedStoreId || decryptCredentialValue(existing.sslCommerzStoreIdEncrypted);
+    resolvedStorePassword =
+      resolvedStorePassword || decryptCredentialValue(existing.sslCommerzStorePasswordEncrypted);
+    resolvedBaseUrl = resolvedBaseUrl || decryptCredentialValue(existing.sslCommerzBaseUrlEncrypted);
+  }
+
+  if (!resolvedStoreId || !resolvedStorePassword || !resolvedBaseUrl) {
+    throw createHttpError(
+      400,
+      "storeId, storePassword and baseUrl are required for SSLCommerz credential setup",
+    );
+  }
+
+  let normalizedBaseUrl: string;
+  try {
+    normalizedBaseUrl = new URL(resolvedBaseUrl).toString().replace(/\/$/, "");
+  } catch {
+    throw createHttpError(400, "baseUrl must be a valid URL");
+  }
+
+  await (prisma as any).institutionPaymentGatewayCredential.upsert({
+    where: {
+      institutionId: context.institutionId,
+    },
+    create: {
+      institutionId: context.institutionId,
+      sslCommerzStoreIdEncrypted: encryptCredentialValue(resolvedStoreId),
+      sslCommerzStorePasswordEncrypted: encryptCredentialValue(resolvedStorePassword),
+      sslCommerzBaseUrlEncrypted: encryptCredentialValue(normalizedBaseUrl),
+      sslCommerzStoreIdHash: hashCredentialValue(resolvedStoreId),
+      sslCommerzStorePasswordHash: hashCredentialValue(resolvedStorePassword),
+      sslCommerzBaseUrlHash: hashCredentialValue(normalizedBaseUrl),
+      isActive: true,
+      lastUpdatedByUserId: creatorUserId,
+    },
+    update: {
+      sslCommerzStoreIdEncrypted: encryptCredentialValue(resolvedStoreId),
+      sslCommerzStorePasswordEncrypted: encryptCredentialValue(resolvedStorePassword),
+      sslCommerzBaseUrlEncrypted: encryptCredentialValue(normalizedBaseUrl),
+      sslCommerzStoreIdHash: hashCredentialValue(resolvedStoreId),
+      sslCommerzStorePasswordHash: hashCredentialValue(resolvedStorePassword),
+      sslCommerzBaseUrlHash: hashCredentialValue(normalizedBaseUrl),
+      isActive: true,
+      lastUpdatedByUserId: creatorUserId,
+    },
+  });
+
+  return getSslCommerzCredential(creatorUserId);
 };
 
 const createSemester = async (
@@ -576,6 +700,8 @@ const createSubAdminAccount = async (
 export const InstitutionAdminService = {
   getDashboardSummary,
   updateProfile,
+  getSslCommerzCredential,
+  upsertSslCommerzCredential,
   listSemesters,
   createSemester,
   updateSemester,

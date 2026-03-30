@@ -1,5 +1,6 @@
 import { AttendanceStatus } from "../../../generated/prisma/enums";
 import { prisma } from "../../lib/prisma";
+import { decryptCredentialValue } from "../../shared/credentialSecurity";
 import {
   ICreateStudentAdmissionApplicationPayload,
   ICreateStudentApplicationProfilePayload,
@@ -66,26 +67,47 @@ function getFrontendPublicUrl() {
   );
 }
 
-function getSslCommerzBaseUrl() {
-  const envBaseUrl = process.env.SSLCOMMERZ_BASE_URL?.trim().replace(/\/$/, "");
-  return envBaseUrl || "https://sandbox.sslcommerz.com";
-}
-
-function getSslCommerzCredentials() {
+function getGlobalSslCommerzCredentials() {
   const storeId = process.env.SSLCOMMERZ_STORE_ID?.trim();
   const storePassword = process.env.SSLCOMMERZ_STORE_PASSWORD?.trim();
+  const baseUrl = process.env.SSLCOMMERZ_BASE_URL?.trim().replace(/\/$/, "");
 
-  if (!storeId || !storePassword) {
+  if (!storeId || !storePassword || !baseUrl) {
     throw createHttpError(
       500,
-      "SSLCommerz credentials are not configured. Set SSLCOMMERZ_STORE_ID and SSLCOMMERZ_STORE_PASSWORD.",
+      "SSLCommerz credentials are not configured. Set SSLCOMMERZ_STORE_ID, SSLCOMMERZ_STORE_PASSWORD and SSLCOMMERZ_BASE_URL.",
     );
   }
 
   return {
     storeId,
     storePassword,
+    baseUrl,
   };
+}
+
+async function resolveSslCommerzConfigForInstitution(institutionId: string) {
+  const configured = await (prisma as any).institutionPaymentGatewayCredential.findUnique({
+    where: {
+      institutionId,
+    },
+    select: {
+      sslCommerzStoreIdEncrypted: true,
+      sslCommerzStorePasswordEncrypted: true,
+      sslCommerzBaseUrlEncrypted: true,
+      isActive: true,
+    },
+  });
+
+  if (configured?.isActive) {
+    return {
+      storeId: decryptCredentialValue(configured.sslCommerzStoreIdEncrypted),
+      storePassword: decryptCredentialValue(configured.sslCommerzStorePasswordEncrypted),
+      baseUrl: decryptCredentialValue(configured.sslCommerzBaseUrlEncrypted).replace(/\/$/, ""),
+    };
+  }
+
+  return getGlobalSslCommerzCredentials();
 }
 
 function normalizeCallbackQuery(query: Record<string, unknown>): IStudentFeeGatewayCallbackQuery {
@@ -1557,8 +1579,8 @@ const initiateFeePayment = async (userId: string, payload: IInitiateStudentFeePa
 
   const transactionId = createTransactionId();
   const backendBaseUrl = getBackendPublicUrl();
-  const { storeId, storePassword } = getSslCommerzCredentials();
-  const sslCommerzBaseUrl = getSslCommerzBaseUrl();
+  const { storeId, storePassword, baseUrl: sslCommerzBaseUrl } =
+    await resolveSslCommerzConfigForInstitution(profile.institutionId);
   const currency = toSafeUpper(feeConfiguration.currency, "BDT");
 
   const createdPayment = await feePaymentDelegate().create({
@@ -1760,8 +1782,8 @@ const handleFeeGatewayCallback = async (
     };
   }
 
-  const { storeId, storePassword } = getSslCommerzCredentials();
-  const sslCommerzBaseUrl = getSslCommerzBaseUrl();
+  const { storeId, storePassword, baseUrl: sslCommerzBaseUrl } =
+    await resolveSslCommerzConfigForInstitution(payment.institutionId);
 
   const validatorParams = new URLSearchParams({
     val_id: validationId,

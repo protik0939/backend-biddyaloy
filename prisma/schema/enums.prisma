@@ -77,6 +77,25 @@ enum InstitutionApplicationStatus {
     REJECTED
 }
 
+enum InstitutionSubscriptionPlan {
+    MONTHLY
+    HALF_YEARLY
+    YEARLY
+}
+
+enum InstitutionSubscriptionPaymentStatus {
+    PENDING
+    PAID
+    FAILED
+    CANCELLED
+}
+
+enum InstitutionSubscriptionStatus {
+    ACTIVE
+    EXPIRED
+    CANCELLED
+}
+
 enum TeacherJobApplicationStatus {
     PENDING
     SHORTLISTED

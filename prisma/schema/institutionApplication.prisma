@@ -10,6 +10,20 @@ model InstitutionApplication {
   institutionType InstitutionType?
   institutionLogo String?
 
+  subscriptionPlan InstitutionSubscriptionPlan?
+  subscriptionAmount Decimal? @db.Decimal(12, 2)
+  subscriptionCurrency String @default("BDT")
+  subscriptionMonths Int?
+  subscriptionPaymentStatus InstitutionSubscriptionPaymentStatus @default(PENDING)
+  subscriptionTranId String? @unique
+  subscriptionGatewayStatus String?
+  subscriptionGatewaySessionKey String? @unique
+  subscriptionGatewayValId String?
+  subscriptionGatewayBankTranId String?
+  subscriptionGatewayCardType String?
+  subscriptionGatewayRawPayload Json?
+  subscriptionPaidAt DateTime?
+
   status InstitutionApplicationStatus @default(PENDING)
   rejectionReason String?
 
@@ -19,6 +33,7 @@ model InstitutionApplication {
 
   institutionId String?
   institution Institution? @relation(fields: [institutionId], references: [id])
+  subscriptions InstitutionSubscription[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

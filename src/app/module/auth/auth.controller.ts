@@ -40,6 +40,21 @@ const getCurrentUserProfile = catchAsync(async (_req: Request, res: Response) =>
   });
 });
 
+const getAccessStatus = catchAsync(async (_req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string; role: string };
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Access status fetched successfully",
+    data: {
+      ok: true,
+      userId: user.id,
+      role: user.role,
+    },
+  });
+});
+
 const getOtpStatus = catchAsync(async (req: Request, res: Response) => {
   const payload = req.body;
   const result = await AuthService.getAccountVerificationOtpStatus(payload);
@@ -116,6 +131,7 @@ const changePassword = catchAsync(async (req: Request, res: Response) => {
 export const AuthController = {
   registerUser,
   loginUser,
+  getAccessStatus,
   getCurrentUserProfile,
   getOtpStatus,
   resendOtp,

@@ -10,6 +10,66 @@ type SessionUser = {
   accountStatus: string;
 };
 
+async function resolveInstitutionIdForUser(user: SessionUser): Promise<string | null> {
+  if (user.role === "ADMIN") {
+    const adminProfile = await prisma.adminProfile.findUnique({
+      where: {
+        userId: user.id,
+      },
+      select: {
+        institutionId: true,
+      },
+    });
+
+    return adminProfile?.institutionId ?? null;
+  }
+
+  if (user.role === "TEACHER") {
+    const teacherProfile = await prisma.teacherProfile.findUnique({
+      where: {
+        userId: user.id,
+      },
+      select: {
+        institutionId: true,
+      },
+    });
+
+    return teacherProfile?.institutionId ?? null;
+  }
+
+  if (user.role === "STUDENT") {
+    const studentProfile = await prisma.studentProfile.findUnique({
+      where: {
+        userId: user.id,
+      },
+      select: {
+        institutionId: true,
+      },
+    });
+
+    return studentProfile?.institutionId ?? null;
+  }
+
+  return null;
+}
+
+async function hasActiveInstitutionSubscription(institutionId: string): Promise<boolean> {
+  const activeSubscription = await (prisma as any).institutionSubscription.findFirst({
+    where: {
+      institutionId,
+      status: "ACTIVE",
+      endsAt: {
+        gt: new Date(),
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  return Boolean(activeSubscription?.id);
+}
+
 const SESSION_COOKIE_KEYS = [
   "__Secure-better-auth.session_token",
   "better-auth.session_token",
@@ -123,6 +183,21 @@ export const requireSessionRole = (...roles: AuthUserRole[]) => {
           success: false,
           message: "Account verification is required",
         });
+      }
+
+      if (user.role !== "SUPERADMIN") {
+        const institutionId = await resolveInstitutionIdForUser(user);
+        if (institutionId) {
+          const hasActiveSubscription = await hasActiveInstitutionSubscription(institutionId);
+          if (!hasActiveSubscription) {
+            return res.status(402).json({
+              success: false,
+              code: "INSTITUTION_SUBSCRIPTION_EXPIRED",
+              message:
+                "This portal subscription has expired for your institution. Please contact your institution admin.",
+            });
+          }
+        }
       }
 
       req.authUser = user;

@@ -17,6 +17,17 @@ router.patch(
   validateRequest(InstitutionAdminValidation.updateProfileSchema),
   InstitutionAdminController.updateProfile,
 );
+router.get(
+  "/payment-gateway/sslcommerz",
+  requireAdminRole(),
+  InstitutionAdminController.getSslCommerzCredential,
+);
+router.put(
+  "/payment-gateway/sslcommerz",
+  requireAdminRole(),
+  validateRequest(InstitutionAdminValidation.upsertSslCommerzCredentialSchema),
+  InstitutionAdminController.upsertSslCommerzCredential,
+);
 router.get("/faculties", requireAdminRole(), InstitutionAdminController.listFaculties);
 router.get("/semesters", requireAdminRole(), InstitutionAdminController.listSemesters);
 router.post(

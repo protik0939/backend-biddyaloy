@@ -32,7 +32,8 @@ const isAllowedRequestOrigin = (origin: string | undefined) => {
 };
 
 const isPaymentGatewayCallbackPath = (path: string) =>
-  path.startsWith("/api/v1/student/fees/payment/");
+  path.startsWith("/api/v1/student/fees/payment/") ||
+  path.startsWith("/api/v1/institution-applications/admin/subscription/payment/");
 
 const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {

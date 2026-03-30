@@ -1,0 +1,18 @@
+model InstitutionPaymentGatewayCredential {
+    id                    String      @id @default(uuid())
+    institutionId         String      @unique
+    institution           Institution @relation(fields: [institutionId], references: [id])
+    sslCommerzStoreIdEncrypted String
+    sslCommerzStorePasswordEncrypted String
+    sslCommerzBaseUrlEncrypted String
+    sslCommerzStoreIdHash String
+    sslCommerzStorePasswordHash String
+    sslCommerzBaseUrlHash String
+    isActive              Boolean     @default(true)
+    lastUpdatedByUserId   String?
+    createdAt             DateTime    @default(now())
+    updatedAt             DateTime    @updatedAt
+
+    @@index([institutionId, isActive])
+    @@map("institution_payment_gateway_credentials")
+}

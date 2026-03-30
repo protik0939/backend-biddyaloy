@@ -65,6 +65,30 @@ const updateProfile = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getSslCommerzCredential = catchAsync(async (_req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await InstitutionAdminService.getSslCommerzCredential(user.id);
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "SSLCommerz credential settings fetched successfully",
+    data: result,
+  });
+});
+
+const upsertSslCommerzCredential = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await InstitutionAdminService.upsertSslCommerzCredential(user.id, req.body);
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "SSLCommerz credential settings updated successfully",
+    data: result,
+  });
+});
+
 const listSemesters = catchAsync(async (_req: Request, res: Response) => {
   const user = res.locals.authUser as { id: string };
   const result = await InstitutionAdminService.listSemesters(user.id);
@@ -123,6 +147,8 @@ const deleteSemester = catchAsync(async (req: Request, res: Response) => {
 export const InstitutionAdminController = {
   getDashboardSummary,
   updateProfile,
+  getSslCommerzCredential,
+  upsertSslCommerzCredential,
   createSubAdminAccount,
   listFaculties,
   listSemesters,
