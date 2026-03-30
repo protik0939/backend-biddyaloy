@@ -25,6 +25,22 @@ router.post(
 	validateRequest(AuthValidation.verifyOtpSchema),
 	AuthController.verifyOtp,
 );
+router.post(
+	"/password/forgot",
+	validateRequest(AuthValidation.forgotPasswordSchema),
+	AuthController.forgotPassword,
+);
+router.post(
+	"/password/reset",
+	validateRequest(AuthValidation.resetPasswordSchema),
+	AuthController.resetPassword,
+);
+router.post(
+	"/password/change",
+	requireSessionRole("SUPERADMIN", "ADMIN", "FACULTY", "DEPARTMENT", "TEACHER", "STUDENT"),
+	validateRequest(AuthValidation.changePasswordSchema),
+	AuthController.changePassword,
+);
 router.get(
 	"/me",
 	requireSessionRole("SUPERADMIN", "ADMIN", "TEACHER", "STUDENT"),

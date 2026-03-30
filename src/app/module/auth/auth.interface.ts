@@ -22,4 +22,27 @@ interface IVerifyAuthOtpPayload extends IAuthOtpEmailPayload {
   otp: string;
 }
 
-export { IRegisterUser, ILoginUser, IAuthOtpEmailPayload, IVerifyAuthOtpPayload };
+interface IForgotPasswordPayload {
+  email: string;
+}
+
+interface IResetPasswordPayload {
+  token: string;
+  newPassword: string;
+}
+
+interface IChangePasswordPayload {
+  currentPassword: string;
+  newPassword: string;
+  revokeOtherSessions?: boolean;
+}
+
+export {
+  IRegisterUser,
+  ILoginUser,
+  IAuthOtpEmailPayload,
+  IVerifyAuthOtpPayload,
+  IForgotPasswordPayload,
+  IResetPasswordPayload,
+  IChangePasswordPayload,
+};

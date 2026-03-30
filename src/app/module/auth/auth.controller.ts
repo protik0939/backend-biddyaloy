@@ -76,6 +76,43 @@ const verifyOtp = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const forgotPassword = catchAsync(async (req: Request, res: Response) => {
+  const payload = req.body;
+  const result = await AuthService.requestPasswordReset(payload);
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Password reset request processed successfully",
+    data: result,
+  });
+});
+
+const resetPassword = catchAsync(async (req: Request, res: Response) => {
+  const payload = req.body;
+  const result = await AuthService.resetPassword(payload);
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Password reset successfully",
+    data: result,
+  });
+});
+
+const changePassword = catchAsync(async (req: Request, res: Response) => {
+  const payload = req.body;
+  const cookieHeader = req.headers.cookie;
+  const result = await AuthService.changePassword(payload, cookieHeader);
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Password changed successfully",
+    data: result,
+  });
+});
+
 export const AuthController = {
   registerUser,
   loginUser,
@@ -83,4 +120,7 @@ export const AuthController = {
   getOtpStatus,
   resendOtp,
   verifyOtp,
+  forgotPassword,
+  resetPassword,
+  changePassword,
 };

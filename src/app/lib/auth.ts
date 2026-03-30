@@ -3,6 +3,8 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "./prisma";
 import { AccountStatus } from "../../generated/prisma/enums";
 import { buildTrustedOrigins } from "../shared/originPolicy";
+import { sendEmail } from "../shared/email/sendEmail";
+import { buildPasswordResetEmail } from "../shared/email/templates/passwordResetEmail";
 // If your Prisma file is located elsewhere, you can change the path
 
 const isProduction = process.env.NODE_ENV === "production";
@@ -26,6 +28,19 @@ const cookieAttributes = isProduction
       path: "/",
     };
 
+function getFrontendResetPasswordUrl(token: string): string | undefined {
+  const frontendBase = process.env.FRONTEND_PUBLIC_URL;
+  if (!frontendBase) {
+    return undefined;
+  }
+
+  const normalized = frontendBase.endsWith("/")
+    ? frontendBase.slice(0, -1)
+    : frontendBase;
+
+  return `${normalized}/reset-password?token=${encodeURIComponent(token)}`;
+}
+
 export const auth = betterAuth({
   secret: process.env.AUTH_SECRET ?? process.env.BETTER_AUTH_SECRET,
   baseURL: resolvedBaseURL,
@@ -37,6 +52,22 @@ export const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
+    resetPasswordTokenExpiresIn: 60 * 30,
+    revokeSessionsOnPasswordReset: true,
+    sendResetPassword: async ({ user, url, token }) => {
+      const resetPasswordUrl = getFrontendResetPasswordUrl(token) ?? url;
+      const message = buildPasswordResetEmail({
+        resetPasswordUrl,
+        validityMinutes: 30,
+      });
+
+      await sendEmail({
+        to: user.email,
+        subject: message.subject,
+        html: message.html,
+        text: message.text,
+      });
+    },
   },
   user: {
     additionalFields: {

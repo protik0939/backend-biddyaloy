@@ -706,6 +706,117 @@ function buildTrustedOrigins() {
   return [...trusted];
 }
 
+// src/app/shared/email/sendEmail.ts
+import nodemailer from "nodemailer";
+function getTransporter() {
+  const host = process.env.SMTP_HOST;
+  const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  if (!host || !user || !pass) {
+    return null;
+  }
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: {
+      user,
+      pass
+    }
+  });
+}
+async function sendEmail(payload) {
+  const transporter = getTransporter();
+  const fromAddress = process.env.MAIL_FROM;
+  if (!transporter || !fromAddress) {
+    console.warn(
+      "Email skipped: configure SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS and MAIL_FROM to send emails."
+    );
+    return;
+  }
+  await transporter.sendMail({
+    from: fromAddress,
+    to: payload.to,
+    subject: payload.subject,
+    html: payload.html,
+    text: payload.text
+  });
+}
+
+// src/app/shared/email/buildEmailTemplate.ts
+function escapeHtml(input) {
+  return input.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;").replace(/'/g, "&#039;");
+}
+function buildEmailTemplate(options) {
+  const previewText = options.previewText ? escapeHtml(options.previewText) : "";
+  const heading = escapeHtml(options.heading);
+  const bodyText = escapeHtml(options.bodyText).replace(/\n/g, "<br />");
+  const helperText = options.helperText ? `<p style="margin:16px 0 0;color:#5f6774;font-size:14px;line-height:1.6;">${escapeHtml(options.helperText)}</p>` : "";
+  const cta = options.ctaLabel && options.ctaUrl ? `<a href="${escapeHtml(options.ctaUrl)}" style="display:inline-block;margin-top:20px;background:#0f766e;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:600;font-size:14px;">${escapeHtml(options.ctaLabel)}</a>` : "";
+  const footerNote = options.footerNote ? `<p style="margin:0;color:#7a8393;font-size:12px;line-height:1.6;">${escapeHtml(options.footerNote)}</p>` : "";
+  return `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>${escapeHtml(options.subject)}</title>
+  </head>
+  <body style="margin:0;padding:0;background:#f4f6fb;font-family:Segoe UI,Arial,sans-serif;">
+    <span style="display:none!important;opacity:0;color:transparent;height:0;width:0;overflow:hidden;">${previewText}</span>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:24px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border-radius:16px;padding:28px;border:1px solid #e5e9f2;">
+            <tr>
+              <td>
+                <p style="margin:0 0 8px;color:#0f766e;font-weight:700;font-size:13px;letter-spacing:.08em;text-transform:uppercase;">Biddyaloy</p>
+                <h1 style="margin:0;color:#111827;font-size:24px;line-height:1.3;">${heading}</h1>
+                <p style="margin:16px 0 0;color:#364153;font-size:15px;line-height:1.7;">${bodyText}</p>
+                ${helperText}
+                ${cta}
+              </td>
+            </tr>
+          </table>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;margin-top:10px;padding:0 8px;">
+            <tr>
+              <td align="center">${footerNote}</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
+// src/app/shared/email/templates/passwordResetEmail.ts
+function buildPasswordResetEmail(payload) {
+  const subject = "Reset your Biddyaloy password";
+  const validityLabel = `${payload.validityMinutes} minute${payload.validityMinutes > 1 ? "s" : ""}`;
+  const html = buildEmailTemplate({
+    subject,
+    previewText: "Use this secure link to reset your password",
+    heading: "Password reset requested",
+    bodyText: "We received a request to reset your Biddyaloy account password. Use the button below to set a new password.",
+    helperText: `This link expires in ${validityLabel}. If you did not request this, you can safely ignore this email.`,
+    ctaLabel: "Reset password",
+    ctaUrl: payload.resetPasswordUrl,
+    footerNote: "For your security, Biddyaloy support will never ask for your password or reset link."
+  });
+  const text = [
+    "Password reset requested",
+    "",
+    `Reset link: ${payload.resetPasswordUrl}`,
+    `This link expires in ${validityLabel}.`
+  ].join("\n");
+  return {
+    subject,
+    html,
+    text
+  };
+}
+
 // src/app/lib/auth.ts
 var isProduction = process.env.NODE_ENV === "production";
 var resolvedBaseURL = process.env.BACKEND_PUBLIC_URL ?? process.env.BETTER_AUTH_URL ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : void 0);
@@ -720,6 +831,14 @@ var cookieAttributes = isProduction ? {
   httpOnly: true,
   path: "/"
 };
+function getFrontendResetPasswordUrl(token) {
+  const frontendBase = process.env.FRONTEND_PUBLIC_URL;
+  if (!frontendBase) {
+    return void 0;
+  }
+  const normalized = frontendBase.endsWith("/") ? frontendBase.slice(0, -1) : frontendBase;
+  return `${normalized}/reset-password?token=${encodeURIComponent(token)}`;
+}
 var auth = betterAuth({
   secret: process.env.AUTH_SECRET ?? process.env.BETTER_AUTH_SECRET,
   baseURL: resolvedBaseURL,
@@ -730,7 +849,22 @@ var auth = betterAuth({
     provider: "postgresql"
   }),
   emailAndPassword: {
-    enabled: true
+    enabled: true,
+    resetPasswordTokenExpiresIn: 60 * 30,
+    revokeSessionsOnPasswordReset: true,
+    sendResetPassword: async ({ user, url, token }) => {
+      const resetPasswordUrl = getFrontendResetPasswordUrl(token) ?? url;
+      const message = buildPasswordResetEmail({
+        resetPasswordUrl,
+        validityMinutes: 30
+      });
+      await sendEmail({
+        to: user.email,
+        subject: message.subject,
+        html: message.html,
+        text: message.text
+      });
+    }
   },
   user: {
     additionalFields: {
@@ -5775,90 +5909,6 @@ import { Router as Router3 } from "express";
 // src/app/module/auth/authOtp.service.ts
 import { createHash, randomInt } from "crypto";
 
-// src/app/shared/email/sendEmail.ts
-import nodemailer from "nodemailer";
-function getTransporter() {
-  const host = process.env.SMTP_HOST;
-  const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-  if (!host || !user || !pass) {
-    return null;
-  }
-  return nodemailer.createTransport({
-    host,
-    port,
-    secure: port === 465,
-    auth: {
-      user,
-      pass
-    }
-  });
-}
-async function sendEmail(payload) {
-  const transporter = getTransporter();
-  const fromAddress = process.env.MAIL_FROM;
-  if (!transporter || !fromAddress) {
-    console.warn(
-      "Email skipped: configure SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS and MAIL_FROM to send emails."
-    );
-    return;
-  }
-  await transporter.sendMail({
-    from: fromAddress,
-    to: payload.to,
-    subject: payload.subject,
-    html: payload.html,
-    text: payload.text
-  });
-}
-
-// src/app/shared/email/buildEmailTemplate.ts
-function escapeHtml(input) {
-  return input.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;").replace(/'/g, "&#039;");
-}
-function buildEmailTemplate(options) {
-  const previewText = options.previewText ? escapeHtml(options.previewText) : "";
-  const heading = escapeHtml(options.heading);
-  const bodyText = escapeHtml(options.bodyText).replace(/\n/g, "<br />");
-  const helperText = options.helperText ? `<p style="margin:16px 0 0;color:#5f6774;font-size:14px;line-height:1.6;">${escapeHtml(options.helperText)}</p>` : "";
-  const cta = options.ctaLabel && options.ctaUrl ? `<a href="${escapeHtml(options.ctaUrl)}" style="display:inline-block;margin-top:20px;background:#0f766e;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:600;font-size:14px;">${escapeHtml(options.ctaLabel)}</a>` : "";
-  const footerNote = options.footerNote ? `<p style="margin:0;color:#7a8393;font-size:12px;line-height:1.6;">${escapeHtml(options.footerNote)}</p>` : "";
-  return `<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>${escapeHtml(options.subject)}</title>
-  </head>
-  <body style="margin:0;padding:0;background:#f4f6fb;font-family:Segoe UI,Arial,sans-serif;">
-    <span style="display:none!important;opacity:0;color:transparent;height:0;width:0;overflow:hidden;">${previewText}</span>
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:24px 12px;">
-      <tr>
-        <td align="center">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border-radius:16px;padding:28px;border:1px solid #e5e9f2;">
-            <tr>
-              <td>
-                <p style="margin:0 0 8px;color:#0f766e;font-weight:700;font-size:13px;letter-spacing:.08em;text-transform:uppercase;">Biddyaloy</p>
-                <h1 style="margin:0;color:#111827;font-size:24px;line-height:1.3;">${heading}</h1>
-                <p style="margin:16px 0 0;color:#364153;font-size:15px;line-height:1.7;">${bodyText}</p>
-                ${helperText}
-                ${cta}
-              </td>
-            </tr>
-          </table>
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;margin-top:10px;padding:0 8px;">
-            <tr>
-              <td align="center">${footerNote}</td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-  </body>
-</html>`;
-}
-
 // src/app/shared/email/templates/otpVerificationEmail.ts
 function buildOtpVerificationEmail(payload) {
   const subject = "Verify your Biddyaloy account";
@@ -6416,13 +6466,62 @@ var verifyAccountOtp = async (payload) => {
     role: effectiveRole
   };
 };
+function getFrontendResetPasswordRedirectUrl() {
+  const frontendBase = process.env.FRONTEND_PUBLIC_URL;
+  if (!frontendBase) {
+    return void 0;
+  }
+  const normalizedBase = frontendBase.endsWith("/") ? frontendBase.slice(0, -1) : frontendBase;
+  return `${normalizedBase}/reset-password`;
+}
+var requestPasswordReset = async (payload) => {
+  const redirectTo = getFrontendResetPasswordRedirectUrl();
+  const result = await auth.api.requestPasswordReset({
+    body: {
+      email: payload.email,
+      redirectTo
+    }
+  });
+  return {
+    status: result.status,
+    message: result.message
+  };
+};
+var resetPassword = async (payload) => {
+  const result = await auth.api.resetPassword({
+    body: {
+      token: payload.token,
+      newPassword: payload.newPassword
+    }
+  });
+  return {
+    status: result.status
+  };
+};
+var changePassword = async (payload, cookieHeader) => {
+  const result = await auth.api.changePassword({
+    body: {
+      currentPassword: payload.currentPassword,
+      newPassword: payload.newPassword,
+      revokeOtherSessions: payload.revokeOtherSessions
+    },
+    headers: cookieHeader ? { cookie: cookieHeader } : void 0
+  });
+  return {
+    token: result.token,
+    user: result.user
+  };
+};
 var AuthService = {
   registerUser,
   loginUser,
   getCurrentUserProfile,
   getAccountVerificationOtpStatus,
   resendAccountVerificationOtp,
-  verifyAccountOtp
+  verifyAccountOtp,
+  requestPasswordReset,
+  resetPassword,
+  changePassword
 };
 
 // src/app/module/auth/auth.controller.ts
@@ -6486,13 +6585,47 @@ var verifyOtp = catchAsync(async (req, res) => {
     data: result
   });
 });
+var forgotPassword = catchAsync(async (req, res) => {
+  const payload = req.body;
+  const result = await AuthService.requestPasswordReset(payload);
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Password reset request processed successfully",
+    data: result
+  });
+});
+var resetPassword2 = catchAsync(async (req, res) => {
+  const payload = req.body;
+  const result = await AuthService.resetPassword(payload);
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Password reset successfully",
+    data: result
+  });
+});
+var changePassword2 = catchAsync(async (req, res) => {
+  const payload = req.body;
+  const cookieHeader = req.headers.cookie;
+  const result = await AuthService.changePassword(payload, cookieHeader);
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Password changed successfully",
+    data: result
+  });
+});
 var AuthController = {
   registerUser: registerUser2,
   loginUser: loginUser2,
   getCurrentUserProfile: getCurrentUserProfile2,
   getOtpStatus,
   resendOtp,
-  verifyOtp
+  verifyOtp,
+  forgotPassword,
+  resetPassword: resetPassword2,
+  changePassword: changePassword2
 };
 
 // src/app/module/auth/auth.validation.ts
@@ -6605,6 +6738,22 @@ router3.post(
   "/otp/verify",
   validateRequest(AuthValidation.verifyOtpSchema),
   AuthController.verifyOtp
+);
+router3.post(
+  "/password/forgot",
+  validateRequest(AuthValidation.forgotPasswordSchema),
+  AuthController.forgotPassword
+);
+router3.post(
+  "/password/reset",
+  validateRequest(AuthValidation.resetPasswordSchema),
+  AuthController.resetPassword
+);
+router3.post(
+  "/password/change",
+  requireSessionRole("SUPERADMIN", "ADMIN", "FACULTY", "DEPARTMENT", "TEACHER", "STUDENT"),
+  validateRequest(AuthValidation.changePasswordSchema),
+  AuthController.changePassword
 );
 router3.get(
   "/me",
@@ -9113,7 +9262,7 @@ var updateTeacherJobPost = async (userId, postingId, payload) => {
       institutionId: true
     }
   });
-  if (!existing || existing.institutionId !== context.institutionId) {
+  if (existing?.institutionId !== context.institutionId) {
     throw createHttpError9(404, "Teacher job post not found");
   }
   return prisma.teacherJobPost.update({
@@ -9134,7 +9283,7 @@ var updateStudentAdmissionPost = async (userId, postingId, payload) => {
       institutionId: true
     }
   });
-  if (!existing || existing.institutionId !== context.institutionId) {
+  if (existing?.institutionId !== context.institutionId) {
     throw createHttpError9(404, "Student admission post not found");
   }
   return prisma.studentAdmissionPost.update({
@@ -9155,7 +9304,7 @@ var deleteTeacherJobPost = async (userId, postingId) => {
       institutionId: true
     }
   });
-  if (!existing || existing.institutionId !== context.institutionId) {
+  if (existing?.institutionId !== context.institutionId) {
     throw createHttpError9(404, "Teacher job post not found");
   }
   await prisma.teacherJobPost.delete({
@@ -9178,7 +9327,7 @@ var deleteStudentAdmissionPost = async (userId, postingId) => {
       institutionId: true
     }
   });
-  if (!existing || existing.institutionId !== context.institutionId) {
+  if (existing?.institutionId !== context.institutionId) {
     throw createHttpError9(404, "Student admission post not found");
   }
   await prisma.studentAdmissionPost.delete({

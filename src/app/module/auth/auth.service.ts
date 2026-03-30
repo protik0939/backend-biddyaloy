@@ -3,8 +3,11 @@ import { prisma } from "../../lib/prisma";
 import { AccountStatus, AdminRole } from "../../../generated/prisma/enums";
 import {
   IAuthOtpEmailPayload,
+  IChangePasswordPayload,
+  IForgotPasswordPayload,
   ILoginUser,
   IRegisterUser,
+  IResetPasswordPayload,
   IVerifyAuthOtpPayload,
 } from "./auth.interface";
 import { AuthOtpService } from "./authOtp.service";
@@ -372,6 +375,64 @@ const verifyAccountOtp = async (payload: IVerifyAuthOtpPayload) => {
   };
 };
 
+function getFrontendResetPasswordRedirectUrl(): string | undefined {
+  const frontendBase = process.env.FRONTEND_PUBLIC_URL;
+  if (!frontendBase) {
+    return undefined;
+  }
+
+  const normalizedBase = frontendBase.endsWith("/")
+    ? frontendBase.slice(0, -1)
+    : frontendBase;
+
+  return `${normalizedBase}/reset-password`;
+}
+
+const requestPasswordReset = async (payload: IForgotPasswordPayload) => {
+  const redirectTo = getFrontendResetPasswordRedirectUrl();
+
+  const result = await auth.api.requestPasswordReset({
+    body: {
+      email: payload.email,
+      redirectTo,
+    },
+  });
+
+  return {
+    status: result.status,
+    message: result.message,
+  };
+};
+
+const resetPassword = async (payload: IResetPasswordPayload) => {
+  const result = await auth.api.resetPassword({
+    body: {
+      token: payload.token,
+      newPassword: payload.newPassword,
+    },
+  });
+
+  return {
+    status: result.status,
+  };
+};
+
+const changePassword = async (payload: IChangePasswordPayload, cookieHeader?: string) => {
+  const result = await auth.api.changePassword({
+    body: {
+      currentPassword: payload.currentPassword,
+      newPassword: payload.newPassword,
+      revokeOtherSessions: payload.revokeOtherSessions,
+    },
+    headers: cookieHeader ? { cookie: cookieHeader } : undefined,
+  });
+
+  return {
+    token: result.token,
+    user: result.user,
+  };
+};
+
 export const AuthService = {
   registerUser,
   loginUser,
@@ -379,4 +440,7 @@ export const AuthService = {
   getAccountVerificationOtpStatus,
   resendAccountVerificationOtp,
   verifyAccountOtp,
+  requestPasswordReset,
+  resetPassword,
+  changePassword,
 };
