@@ -259,6 +259,12 @@ async function hasActiveInstitutionSubscription(institutionId) {
   });
   return Boolean(activeSubscription?.id);
 }
+function canBypassSubscriptionExpiry(user, req) {
+  if (user.role !== "ADMIN") {
+    return false;
+  }
+  return req.path === "/api/v1/institution-admin/subscription/renew/initiate";
+}
 var SESSION_COOKIE_KEYS = [
   "__Secure-better-auth.session_token",
   "better-auth.session_token",
@@ -358,6 +364,12 @@ var requireSessionRole = (...roles) => {
         });
       }
       if (user.role !== "SUPERADMIN") {
+        if (canBypassSubscriptionExpiry(user, req)) {
+          req.authUser = user;
+          res.locals.authUser = user;
+          next();
+          return;
+        }
         const institutionId = await resolveInstitutionIdForUser(user);
         if (institutionId) {
           const hasActiveSubscription = await hasActiveInstitutionSubscription(institutionId);

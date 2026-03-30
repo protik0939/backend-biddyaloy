@@ -70,6 +70,14 @@ async function hasActiveInstitutionSubscription(institutionId: string): Promise<
   return Boolean(activeSubscription?.id);
 }
 
+function canBypassSubscriptionExpiry(user: SessionUser, req: Request) {
+  if (user.role !== "ADMIN") {
+    return false;
+  }
+
+  return req.path === "/api/v1/institution-admin/subscription/renew/initiate";
+}
+
 const SESSION_COOKIE_KEYS = [
   "__Secure-better-auth.session_token",
   "better-auth.session_token",
@@ -186,6 +194,13 @@ export const requireSessionRole = (...roles: AuthUserRole[]) => {
       }
 
       if (user.role !== "SUPERADMIN") {
+        if (canBypassSubscriptionExpiry(user, req)) {
+          req.authUser = user;
+          res.locals.authUser = user;
+          next();
+          return;
+        }
+
         const institutionId = await resolveInstitutionIdForUser(user);
         if (institutionId) {
           const hasActiveSubscription = await hasActiveInstitutionSubscription(institutionId);
