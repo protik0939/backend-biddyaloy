@@ -69,6 +69,12 @@ router.get(
 );
 
 router.get(
+  "/routines",
+  requireSessionRole("STUDENT"),
+  StudentController.listRoutines,
+);
+
+router.get(
   "/results",
   requireSessionRole("STUDENT"),
   validateRequest(StudentValidation.listResultsSchema),

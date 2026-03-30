@@ -130,6 +130,18 @@ const listAssignedSectionsWithStudents = catchAsync(async (req: Request, res: Re
   });
 });
 
+const listRoutines = catchAsync(async (_req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await TeacherService.listRoutines(user.id);
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Teacher routines fetched successfully",
+    data: result,
+  });
+});
+
 const listClassworks = catchAsync(async (req: Request, res: Response) => {
   const user = res.locals.authUser as { id: string };
   const sectionId = typeof req.query.sectionId === "string" ? req.query.sectionId : undefined;
@@ -291,6 +303,7 @@ export const TeacherController = {
   applyToTeacherJobPosting,
   listMyJobApplications,
   listAssignedSectionsWithStudents,
+  listRoutines,
   listClassworks,
   createClasswork,
   updateClasswork,

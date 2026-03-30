@@ -77,6 +77,59 @@ const createSemester = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const listSchedules = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await DepartmentService.listSchedules(
+    user.id,
+    req.query.departmentId as string | undefined,
+    readQueryValue(req.query.search),
+    readQueryValue(req.query.semesterId),
+  );
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Class slots fetched successfully",
+    data: result,
+  });
+});
+
+const createSchedule = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await DepartmentService.createSchedule(user.id, req.body);
+
+  sendResponse(res, {
+    httpStatusCode: 201,
+    success: true,
+    message: "Class slot created successfully",
+    data: result,
+  });
+});
+
+const updateSchedule = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await DepartmentService.updateSchedule(user.id, readParam(req.params.scheduleId), req.body);
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Class slot updated successfully",
+    data: result,
+  });
+});
+
+const deleteSchedule = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await DepartmentService.deleteSchedule(user.id, readParam(req.params.scheduleId));
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Class slot deleted successfully",
+    data: result,
+  });
+});
+
 const updateSemester = catchAsync(async (req: Request, res: Response) => {
   const user = res.locals.authUser as { id: string };
   const result = await DepartmentService.updateSemester(
@@ -307,6 +360,7 @@ const listCourseRegistrations = catchAsync(async (req: Request, res: Response) =
     user.id,
     req.query.departmentId as string | undefined,
     readQueryValue(req.query.search),
+    readQueryValue(req.query.semesterId),
   );
 
   sendResponse(res, {
@@ -353,6 +407,59 @@ const createCourseRegistration = catchAsync(async (req: Request, res: Response) 
     httpStatusCode: 201,
     success: true,
     message: "Course registration created successfully",
+    data: result,
+  });
+});
+
+const listRoutines = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await DepartmentService.listRoutines(
+    user.id,
+    req.query.departmentId as string | undefined,
+    readQueryValue(req.query.search),
+    readQueryValue(req.query.semesterId),
+  );
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Routines fetched successfully",
+    data: result,
+  });
+});
+
+const createRoutine = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await DepartmentService.createRoutine(user.id, req.body);
+
+  sendResponse(res, {
+    httpStatusCode: 201,
+    success: true,
+    message: "Routine created successfully",
+    data: result,
+  });
+});
+
+const updateRoutine = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await DepartmentService.updateRoutine(user.id, readParam(req.params.routineId), req.body);
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Routine updated successfully",
+    data: result,
+  });
+});
+
+const deleteRoutine = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await DepartmentService.deleteRoutine(user.id, readParam(req.params.routineId));
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Routine deleted successfully",
     data: result,
   });
 });
@@ -432,6 +539,18 @@ const updateTeacher = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const removeTeacher = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await DepartmentService.removeTeacher(user.id, readParam(req.params.teacherProfileId));
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Teacher removed successfully",
+    data: result,
+  });
+});
+
 const listStudents = catchAsync(async (req: Request, res: Response) => {
   const user = res.locals.authUser as { id: string };
   const result = await DepartmentService.listStudents(
@@ -472,6 +591,18 @@ const updateStudent = catchAsync(async (req: Request, res: Response) => {
     httpStatusCode: 200,
     success: true,
     message: "Student updated successfully",
+    data: result,
+  });
+});
+
+const removeStudent = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await DepartmentService.removeStudent(user.id, readParam(req.params.studentProfileId));
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Student removed successfully",
     data: result,
   });
 });
@@ -549,12 +680,74 @@ const getStudentPaymentInfoByStudentId = catchAsync(async (req: Request, res: Re
   });
 });
 
+const createInstitutionTransferRequest = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await DepartmentService.createInstitutionTransferRequest(user.id, req.body);
+
+  sendResponse(res, {
+    httpStatusCode: 201,
+    success: true,
+    message: "Transfer request created successfully",
+    data: result,
+  });
+});
+
+const listOutgoingInstitutionTransferRequests = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await DepartmentService.listOutgoingInstitutionTransferRequests(user.id, {
+    status: req.query.status as any,
+    entityType: req.query.entityType as any,
+  });
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Outgoing transfer requests fetched successfully",
+    data: result,
+  });
+});
+
+const listIncomingInstitutionTransferRequests = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await DepartmentService.listIncomingInstitutionTransferRequests(user.id, {
+    status: req.query.status as any,
+    entityType: req.query.entityType as any,
+  });
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Incoming transfer requests fetched successfully",
+    data: result,
+  });
+});
+
+const reviewInstitutionTransferRequest = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await DepartmentService.reviewInstitutionTransferRequest(
+    user.id,
+    readParam(req.params.transferRequestId),
+    req.body,
+  );
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Transfer request reviewed successfully",
+    data: result,
+  });
+});
+
 export const DepartmentController = {
   getDepartmentProfile,
   getDashboardSummary,
   updateDepartmentProfile,
   listSemesters,
   createSemester,
+  listSchedules,
+  createSchedule,
+  updateSchedule,
+  deleteSchedule,
   updateSemester,
   listBatches,
   createBatch,
@@ -575,17 +768,27 @@ export const DepartmentController = {
   listSectionCourseTeacherAssignments,
   upsertSectionCourseTeacherAssignment,
   createCourseRegistration,
+  listRoutines,
+  createRoutine,
+  updateRoutine,
+  deleteRoutine,
   updateCourseRegistration,
   deleteCourseRegistration,
   listTeachers,
   createTeacher,
   updateTeacher,
+  removeTeacher,
   listStudents,
   createStudent,
   updateStudent,
+  removeStudent,
   listStudentAdmissionApplications,
   reviewStudentAdmissionApplication,
   listFeeConfigurations,
   upsertFeeConfiguration,
   getStudentPaymentInfoByStudentId,
+  createInstitutionTransferRequest,
+  listOutgoingInstitutionTransferRequests,
+  listIncomingInstitutionTransferRequests,
+  reviewInstitutionTransferRequest,
 };

@@ -24,6 +24,9 @@ model Department {
     teacherMarks TeacherMark[]
     feeConfigurations DepartmentSemesterFeeConfiguration[]
     feePayments StudentFeePayment[]
+    schedules Schedule[]
+    routines Routine[]
+    transferRequestsAsTargetDepartment InstitutionTransferRequest[]
 
     @@map("departments")
 }

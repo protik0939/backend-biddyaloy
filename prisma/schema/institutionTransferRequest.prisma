@@ -1,0 +1,43 @@
+model InstitutionTransferRequest {
+    id String @id @default(uuid())
+
+    entityType InstitutionTransferEntityType
+    status InstitutionTransferStatus @default(PENDING)
+
+    sourceInstitutionId String
+    sourceInstitution Institution @relation("TransferRequestSourceInstitution", fields: [sourceInstitutionId], references: [id])
+
+    targetInstitutionId String
+    targetInstitution Institution @relation("TransferRequestTargetInstitution", fields: [targetInstitutionId], references: [id])
+
+    requesterUserId String
+    requesterUser User @relation("TransferRequestRequesterUser", fields: [requesterUserId], references: [id])
+
+    reviewerUserId String?
+    reviewerUser User? @relation("TransferRequestReviewerUser", fields: [reviewerUserId], references: [id])
+
+    studentProfileId String?
+    studentProfile StudentProfile? @relation(fields: [studentProfileId], references: [id])
+
+    teacherProfileId String?
+    teacherProfile TeacherProfile? @relation(fields: [teacherProfileId], references: [id])
+
+    targetDepartmentId String?
+    targetDepartment Department? @relation(fields: [targetDepartmentId], references: [id])
+
+    requestMessage String?
+    responseMessage String?
+
+    requestedAt DateTime @default(now())
+    reviewedAt DateTime?
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([sourceInstitutionId, status])
+    @@index([targetInstitutionId, status])
+    @@index([requesterUserId])
+    @@index([studentProfileId])
+    @@index([teacherProfileId])
+    @@map("institution_transfer_requests")
+}

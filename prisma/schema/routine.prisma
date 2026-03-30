@@ -13,8 +13,16 @@ model Routine {
     classRoomId String
     classRoom   ClassRoom @relation(fields: [classRoomId], references: [id])
 
+    institutionId String?
+    institution   Institution? @relation(fields: [institutionId], references: [id])
+
+    departmentId String?
+    department   Department? @relation(fields: [departmentId], references: [id])
+
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
 
+    @@index([institutionId])
+    @@index([departmentId])
     @@map("routines")
 }

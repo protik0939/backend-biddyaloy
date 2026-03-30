@@ -728,6 +728,70 @@ const listAssignedSectionsWithStudents = async (userId: string, search?: string)
   );
 };
 
+const listRoutines = async (userId: string) => {
+  const context = await resolveTeacherInstitutionContext(userId);
+
+  return (prisma as any).routine.findMany({
+    where: {
+      institutionId: context.profile.institutionId,
+      courseRegistration: {
+        teacherProfileId: context.profile.id,
+      },
+    },
+    include: {
+      schedule: true,
+      classRoom: true,
+      courseRegistration: {
+        include: {
+          course: {
+            select: {
+              id: true,
+              courseCode: true,
+              courseTitle: true,
+            },
+          },
+          section: {
+            select: {
+              id: true,
+              name: true,
+              batch: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+          semester: {
+            select: {
+              id: true,
+              name: true,
+              startDate: true,
+              endDate: true,
+            },
+          },
+          teacherProfile: {
+            select: {
+              id: true,
+              teacherInitial: true,
+              teachersId: true,
+              designation: true,
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    orderBy: [{ schedule: { startTime: "asc" } }, { createdAt: "desc" }],
+  });
+};
+
 const listClassworks = async (
   userId: string,
   query: IListTeacherClassworksQuery,
@@ -1491,6 +1555,7 @@ export const TeacherService = {
   applyToTeacherJobPosting,
   listMyJobApplications,
   listAssignedSectionsWithStudents,
+  listRoutines,
   listClassworks,
   createClasswork,
   updateClasswork,

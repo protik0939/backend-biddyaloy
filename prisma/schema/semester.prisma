@@ -4,6 +4,7 @@ model Semester {
     startDate     DateTime
     endDate       DateTime
     institutionId String
+    schedules     Schedule[]
     sections      Section[]
     courseRegistrations CourseRegistration[]
     feeConfigurations DepartmentSemesterFeeConfiguration[]

@@ -25,6 +25,11 @@ model Institution {
     teacherMarks TeacherMark[]
     feeConfigurations DepartmentSemesterFeeConfiguration[]
     feePayments StudentFeePayment[]
+    schedules Schedule[]
+    routines Routine[]
+    notices Notice[]
+    sourceTransferRequests InstitutionTransferRequest[] @relation("TransferRequestSourceInstitution")
+    targetTransferRequests InstitutionTransferRequest[] @relation("TransferRequestTargetInstitution")
 
     @@map("institutions")
 }

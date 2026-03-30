@@ -61,6 +61,12 @@ router.get(
 );
 
 router.get(
+  "/routines",
+  requireSessionRole("TEACHER"),
+  TeacherController.listRoutines,
+);
+
+router.get(
   "/classworks",
   requireSessionRole("TEACHER"),
   validateRequest(TeacherValidation.listClassworksSchema),

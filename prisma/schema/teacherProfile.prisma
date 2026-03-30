@@ -11,6 +11,7 @@ model TeacherProfile {
     classworks TeacherClasswork[]
     jobApplications TeacherJobApplication[]
     marks TeacherMark[]
+    transferRequests InstitutionTransferRequest[]
 
     departmentId String
     department   Department @relation(fields: [departmentId], references: [id])

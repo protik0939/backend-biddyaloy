@@ -21,6 +21,10 @@ model User {
   reviewedStudentAdmissionApplications StudentAdmissionApplication[] @relation("StudentAdmissionReviewer")
   studentApplicationProfile StudentApplicationProfile?
   emailOtps EmailOtp[]
+  requestedTransferRequests InstitutionTransferRequest[] @relation("TransferRequestRequesterUser")
+  reviewedTransferRequests InstitutionTransferRequest[] @relation("TransferRequestReviewerUser")
+  sentNotices Notice[] @relation("NoticeSenderUser")
+  readNotices NoticeRead[]
 
   contactNo        String?
   presentAddress   String?

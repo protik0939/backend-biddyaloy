@@ -16,6 +16,7 @@ model StudentProfile {
     classworkSubmissions StudentClassworkSubmission[]
     admissionApplications StudentAdmissionApplication[]
     feePayments StudentFeePayment[]
+    transferRequests InstitutionTransferRequest[]
 
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt

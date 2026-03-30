@@ -1,7 +1,10 @@
 import {
   AccountStatus,
   AdminRole,
+  InstitutionTransferEntityType,
+  InstitutionTransferStatus,
   InstitutionType,
+  SlotStatus,
   StudentAdmissionApplicationStatus,
   UserRole,
 } from "../../../generated/prisma/enums";
@@ -9,6 +12,9 @@ import { auth } from "../../lib/auth";
 import { prisma } from "../../lib/prisma";
 import {
   ICreateBatchPayload,
+  ICreateRoutinePayload,
+  ICreateSchedulePayload,
+  ICreateInstitutionTransferRequestPayload,
   ICreateCourseRegistrationPayload,
   ICreateCoursePayload,
   ICreateProgramPayload,
@@ -16,11 +22,15 @@ import {
   ICreateSemesterPayload,
   ICreateStudentPayload,
   ICreateTeacherPayload,
+  IListInstitutionTransferRequestsQuery,
   IListStudentAdmissionApplicationsQuery,
+  IReviewInstitutionTransferRequestPayload,
   IReviewStudentAdmissionApplicationPayload,
   IListDepartmentFeeConfigurationsQuery,
   IUpsertDepartmentFeeConfigurationPayload,
   IUpdateBatchPayload,
+  IUpdateRoutinePayload,
+  IUpdateSchedulePayload,
   IUpdateCoursePayload,
   IUpdateCourseRegistrationPayload,
   IUpdateDepartmentProfilePayload,
@@ -56,6 +66,14 @@ function studentFeePaymentDelegate() {
   return (prisma as any).studentFeePayment;
 }
 
+function scheduleDelegate() {
+  return (prisma as any).schedule;
+}
+
+function routineDelegate() {
+  return (prisma as any).routine;
+}
+
 const FEE_PAYMENT_STATUS_SUCCESS = "SUCCESS";
 
 async function resolveDepartmentContext(userId: string, departmentId?: string) {
@@ -70,7 +88,7 @@ async function resolveDepartmentContext(userId: string, departmentId?: string) {
   });
 
   if (!adminProfile?.institutionId) {
-    throw createHttpError(403, "Only department admins can access this resource");
+    throw createHttpError(403, "Only institution academic admins can access this resource");
   }
 
   const institution = await prisma.institution.findUnique({
@@ -82,15 +100,15 @@ async function resolveDepartmentContext(userId: string, departmentId?: string) {
     },
   });
 
-  const isInstitutionAdminNonUniversity =
-    adminProfile.role === AdminRole.INSTITUTIONADMIN &&
-    Boolean(institution?.type) &&
-    institution?.type !== InstitutionType.UNIVERSITY;
+  const isUniversityInstitution = institution?.type === InstitutionType.UNIVERSITY;
+  const isDepartmentAdmin = adminProfile.role === AdminRole.DEPARTMENTADMIN;
+  const isFacultyAdmin = adminProfile.role === AdminRole.FACULTYADMIN;
+  const isInstitutionAdmin = adminProfile.role === AdminRole.INSTITUTIONADMIN;
+  const canAccessForUniversity = isUniversityInstitution && (isInstitutionAdmin || isFacultyAdmin);
+  const canAccessForNonUniversity = !isUniversityInstitution && isInstitutionAdmin;
 
-  if (adminProfile.role !== AdminRole.DEPARTMENTADMIN) {
-    if (!isInstitutionAdminNonUniversity) {
-      throw createHttpError(403, "Only department admins can access this resource");
-    }
+  if (!isDepartmentAdmin && !canAccessForUniversity && !canAccessForNonUniversity) {
+    throw createHttpError(403, "Only department-level academic admins can access this resource");
   }
 
   if (departmentId) {
@@ -132,7 +150,7 @@ async function resolveDepartmentContext(userId: string, departmentId?: string) {
   });
 
   if (departments.length === 0) {
-    if (isInstitutionAdminNonUniversity) {
+    if (canAccessForNonUniversity) {
       const bootstrap = await prisma.$transaction(async (trx) => {
         const existingFaculty = await trx.faculty.findFirst({
           where: {
@@ -190,7 +208,7 @@ async function resolveDepartmentContext(userId: string, departmentId?: string) {
   }
 
   if (departments.length > 1) {
-    if (isInstitutionAdminNonUniversity) {
+    if (canAccessForUniversity || canAccessForNonUniversity) {
       return {
         institutionId: adminProfile.institutionId,
         departmentId: departments[0].id,
@@ -204,6 +222,256 @@ async function resolveDepartmentContext(userId: string, departmentId?: string) {
     institutionId: adminProfile.institutionId,
     departmentId: departments[0].id,
   };
+}
+
+async function resolveAcademicInstitutionContext(userId: string) {
+  const adminProfile = await prisma.adminProfile.findUnique({
+    where: {
+      userId,
+    },
+    select: {
+      role: true,
+      institutionId: true,
+    },
+  });
+
+  if (!adminProfile?.institutionId) {
+    throw createHttpError(403, "Only institution academic admins can access this resource");
+  }
+
+  const institution = await prisma.institution.findUnique({
+    where: {
+      id: adminProfile.institutionId,
+    },
+    select: {
+      id: true,
+      type: true,
+    },
+  });
+
+  if (!institution) {
+    throw createHttpError(404, "Institution not found");
+  }
+
+  const isUniversityInstitution = institution.type === InstitutionType.UNIVERSITY;
+  const isDepartmentAdmin = adminProfile.role === AdminRole.DEPARTMENTADMIN;
+  const isFacultyAdmin = adminProfile.role === AdminRole.FACULTYADMIN;
+  const isInstitutionAdmin = adminProfile.role === AdminRole.INSTITUTIONADMIN;
+  const canAccessForUniversity = isUniversityInstitution && (isInstitutionAdmin || isFacultyAdmin);
+  const canAccessForNonUniversity = !isUniversityInstitution && isInstitutionAdmin;
+
+  if (!isDepartmentAdmin && !canAccessForUniversity && !canAccessForNonUniversity) {
+    throw createHttpError(403, "Only department-level academic admins can access this resource");
+  }
+
+  return {
+    institutionId: adminProfile.institutionId,
+    role: adminProfile.role,
+    institutionType: institution.type,
+  };
+}
+
+async function resolveScheduleRoutineManagementContext(userId: string, departmentId?: string) {
+  const context = await resolveDepartmentContext(userId, departmentId);
+
+  const adminProfile = await prisma.adminProfile.findUnique({
+    where: {
+      userId,
+    },
+    select: {
+      role: true,
+      institutionId: true,
+    },
+  });
+
+  if (!adminProfile?.institutionId) {
+    throw createHttpError(403, "Only institution academic admins can access this resource");
+  }
+
+  const isDepartmentAdmin = adminProfile.role === AdminRole.DEPARTMENTADMIN;
+  const isInstitutionAdmin = adminProfile.role === AdminRole.INSTITUTIONADMIN;
+
+  return {
+    ...context,
+    canManage: isDepartmentAdmin || isInstitutionAdmin,
+  };
+}
+
+function validateScheduleTimeWindow(startTime: string, endTime: string) {
+  const timePattern = /^([01]\d|2[0-3]):([0-5]\d)$/;
+  if (!timePattern.test(startTime) || !timePattern.test(endTime)) {
+    throw createHttpError(400, "Class slot time must be in HH:mm format");
+  }
+
+  const [startHour, startMinute] = startTime.split(":").map(Number);
+  const [endHour, endMinute] = endTime.split(":").map(Number);
+  const start = startHour * 60 + startMinute;
+  const end = endHour * 60 + endMinute;
+
+  if (start >= end) {
+    throw createHttpError(400, "Class slot end time must be later than start time");
+  }
+}
+
+async function assertSemesterInInstitution(institutionId: string, semesterId: string) {
+  const semester = await prisma.semester.findFirst({
+    where: {
+      id: semesterId,
+      institutionId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!semester) {
+    throw createHttpError(404, "Semester not found for this institution");
+  }
+}
+
+async function assertRoutineHasNoOverlap(
+  institutionId: string,
+  departmentId: string,
+  scheduleId: string,
+  courseRegistrationId: string,
+  classRoomId: string,
+  excludeRoutineId?: string,
+) {
+  const [selectedSchedule, selectedRegistration, selectedClassroom] = await Promise.all([
+    scheduleDelegate().findFirst({
+      where: {
+        id: scheduleId,
+        institutionId,
+        departmentId,
+      },
+      select: {
+        id: true,
+        semesterId: true,
+        startTime: true,
+        endTime: true,
+      },
+    }),
+    prisma.courseRegistration.findFirst({
+      where: {
+        id: courseRegistrationId,
+        institutionId,
+        departmentId,
+      },
+      select: {
+        id: true,
+        sectionId: true,
+        teacherProfileId: true,
+        semesterId: true,
+      },
+    }),
+    prisma.classRoom.findFirst({
+      where: {
+        id: classRoomId,
+        institutionId,
+      },
+      select: {
+        id: true,
+      },
+    }),
+  ]);
+
+  if (!selectedSchedule) {
+    throw createHttpError(404, "Class slot not found for this department");
+  }
+
+  if (!selectedRegistration) {
+    throw createHttpError(404, "Course registration not found for this department");
+  }
+
+  if (!selectedClassroom) {
+    throw createHttpError(404, "Room not found for this institution");
+  }
+
+  if (!selectedSchedule.semesterId || selectedSchedule.semesterId !== selectedRegistration.semesterId) {
+    throw createHttpError(
+      400,
+      "Selected class slot semester does not match course registration semester",
+    );
+  }
+
+  const conflictingRoutines = await routineDelegate().findMany({
+    where: {
+      institutionId,
+      departmentId,
+      schedule: {
+        semesterId: selectedSchedule.semesterId,
+      },
+      ...(excludeRoutineId
+        ? {
+            id: {
+              not: excludeRoutineId,
+            },
+          }
+        : {}),
+    },
+    include: {
+      schedule: {
+        select: {
+          id: true,
+          startTime: true,
+          endTime: true,
+          name: true,
+        },
+      },
+      courseRegistration: {
+        select: {
+          id: true,
+          sectionId: true,
+          teacherProfileId: true,
+        },
+      },
+      classRoom: {
+        select: {
+          id: true,
+          roomNo: true,
+          name: true,
+        },
+      },
+    },
+  });
+
+  const [selectedStartHour, selectedStartMinute] = selectedSchedule.startTime.split(":").map(Number);
+  const [selectedEndHour, selectedEndMinute] = selectedSchedule.endTime.split(":").map(Number);
+  const selectedStart = selectedStartHour * 60 + selectedStartMinute;
+  const selectedEnd = selectedEndHour * 60 + selectedEndMinute;
+
+  const overlapping = conflictingRoutines.filter((item: any) => {
+    const [itemStartHour, itemStartMinute] = item.schedule.startTime.split(":").map(Number);
+    const [itemEndHour, itemEndMinute] = item.schedule.endTime.split(":").map(Number);
+    const itemStart = itemStartHour * 60 + itemStartMinute;
+    const itemEnd = itemEndHour * 60 + itemEndMinute;
+    return selectedStart < itemEnd && selectedEnd > itemStart;
+  });
+
+  const sectionConflict = overlapping.find(
+    (item: any) => item.courseRegistration.sectionId === selectedRegistration.sectionId,
+  );
+  if (sectionConflict) {
+    throw createHttpError(
+      409,
+      "This section already has another class assigned in an overlapping time slot",
+    );
+  }
+
+  const teacherConflict = overlapping.find(
+    (item: any) => item.courseRegistration.teacherProfileId === selectedRegistration.teacherProfileId,
+  );
+  if (teacherConflict) {
+    throw createHttpError(
+      409,
+      "The assigned teacher already has another class in an overlapping time slot",
+    );
+  }
+
+  const roomConflict = overlapping.find((item: any) => item.classRoom.id === classRoomId);
+  if (roomConflict) {
+    throw createHttpError(409, "Another section is already assigned in this room for an overlapping slot");
+  }
 }
 
 const getDepartmentProfile = async (userId: string, departmentId?: string) => {
@@ -572,6 +840,489 @@ const updateSemester = async (
       endDate: payload.endDate ? new Date(payload.endDate) : undefined,
     },
   });
+};
+
+const listSchedules = async (
+  userId: string,
+  departmentId?: string,
+  search?: string,
+  semesterId?: string,
+) => {
+  const context = await resolveDepartmentContext(userId, departmentId);
+  const normalizedSearch = normalizeSearch(search);
+
+  return scheduleDelegate().findMany({
+    where: {
+      institutionId: context.institutionId,
+      departmentId: context.departmentId,
+      semesterId: semesterId || undefined,
+      ...(normalizedSearch
+        ? {
+            OR: [
+              { name: { contains: normalizedSearch, mode: "insensitive" } },
+              { description: { contains: normalizedSearch, mode: "insensitive" } },
+            ],
+          }
+        : {}),
+    },
+    include: {
+      department: {
+        select: {
+          id: true,
+          fullName: true,
+          shortName: true,
+        },
+      },
+      semester: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+    orderBy: [{ startTime: "asc" }, { name: "asc" }],
+  });
+};
+
+const createSchedule = async (userId: string, payload: ICreateSchedulePayload) => {
+  const context = await resolveScheduleRoutineManagementContext(userId, payload.departmentId);
+
+  if (!context.canManage) {
+    throw createHttpError(
+      403,
+      "Only department admins can set class slots. For non-university institutions, institution admins can do this.",
+    );
+  }
+
+  await assertSemesterInInstitution(context.institutionId, payload.semesterId);
+  validateScheduleTimeWindow(payload.startTime, payload.endTime);
+
+  return scheduleDelegate().create({
+    data: {
+      name: payload.name.trim(),
+      description: payload.description?.trim() || null,
+      semesterId: payload.semesterId,
+      startTime: payload.startTime,
+      endTime: payload.endTime,
+      status: payload.status ?? SlotStatus.CLASS_SLOT,
+      institutionId: context.institutionId,
+      departmentId: context.departmentId,
+    },
+    include: {
+      department: {
+        select: {
+          id: true,
+          fullName: true,
+          shortName: true,
+        },
+      },
+      semester: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+  });
+};
+
+const updateSchedule = async (
+  userId: string,
+  scheduleId: string,
+  payload: IUpdateSchedulePayload,
+) => {
+  const context = await resolveScheduleRoutineManagementContext(userId);
+
+  if (!context.canManage) {
+    throw createHttpError(
+      403,
+      "Only department admins can update class slots. For non-university institutions, institution admins can do this.",
+    );
+  }
+
+  const current = await scheduleDelegate().findFirst({
+    where: {
+      id: scheduleId,
+      institutionId: context.institutionId,
+      departmentId: context.departmentId,
+    },
+    select: {
+      id: true,
+      semesterId: true,
+      startTime: true,
+      endTime: true,
+    },
+  });
+
+  if (!current) {
+    throw createHttpError(404, "Class slot not found for this department");
+  }
+
+  if (payload.semesterId) {
+    await assertSemesterInInstitution(context.institutionId, payload.semesterId);
+  }
+
+  const nextStart = payload.startTime ?? current.startTime;
+  const nextEnd = payload.endTime ?? current.endTime;
+  validateScheduleTimeWindow(nextStart, nextEnd);
+
+  return scheduleDelegate().update({
+    where: {
+      id: scheduleId,
+    },
+    data: {
+      name: payload.name?.trim(),
+      description: payload.description === undefined ? undefined : payload.description.trim() || null,
+      semesterId: payload.semesterId,
+      startTime: payload.startTime,
+      endTime: payload.endTime,
+      status: payload.status,
+    },
+    include: {
+      department: {
+        select: {
+          id: true,
+          fullName: true,
+          shortName: true,
+        },
+      },
+      semester: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+  });
+};
+
+const deleteSchedule = async (userId: string, scheduleId: string) => {
+  const context = await resolveScheduleRoutineManagementContext(userId);
+
+  if (!context.canManage) {
+    throw createHttpError(
+      403,
+      "Only department admins can delete class slots. For non-university institutions, institution admins can do this.",
+    );
+  }
+
+  const schedule = await scheduleDelegate().findFirst({
+    where: {
+      id: scheduleId,
+      institutionId: context.institutionId,
+      departmentId: context.departmentId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!schedule) {
+    throw createHttpError(404, "Class slot not found for this department");
+  }
+
+  const dependentRoutine = await routineDelegate().findFirst({
+    where: {
+      scheduleId,
+      institutionId: context.institutionId,
+      departmentId: context.departmentId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (dependentRoutine) {
+    throw createHttpError(409, "Cannot delete class slot because routines are assigned to it");
+  }
+
+  await scheduleDelegate().delete({
+    where: {
+      id: scheduleId,
+    },
+  });
+
+  return {
+    id: scheduleId,
+  };
+};
+
+const listRoutines = async (
+  userId: string,
+  departmentId?: string,
+  search?: string,
+  semesterId?: string,
+) => {
+  const context = await resolveDepartmentContext(userId, departmentId);
+  const normalizedSearch = normalizeSearch(search);
+
+  return routineDelegate().findMany({
+    where: {
+      institutionId: context.institutionId,
+      departmentId: context.departmentId,
+      ...(semesterId
+        ? {
+            schedule: {
+              semesterId,
+            },
+          }
+        : {}),
+      ...(normalizedSearch
+        ? {
+            OR: [
+              { name: { contains: normalizedSearch, mode: "insensitive" } },
+              { description: { contains: normalizedSearch, mode: "insensitive" } },
+              { version: { contains: normalizedSearch, mode: "insensitive" } },
+              {
+                classRoom: {
+                  OR: [
+                    { roomNo: { contains: normalizedSearch, mode: "insensitive" } },
+                    { name: { contains: normalizedSearch, mode: "insensitive" } },
+                  ],
+                },
+              },
+              {
+                courseRegistration: {
+                  OR: [
+                    { section: { name: { contains: normalizedSearch, mode: "insensitive" } } },
+                    { course: { courseCode: { contains: normalizedSearch, mode: "insensitive" } } },
+                    { course: { courseTitle: { contains: normalizedSearch, mode: "insensitive" } } },
+                    { teacherProfile: { teacherInitial: { contains: normalizedSearch, mode: "insensitive" } } },
+                  ],
+                },
+              },
+            ],
+          }
+        : {}),
+    },
+    include: {
+      schedule: true,
+      classRoom: true,
+      courseRegistration: {
+        include: {
+          course: {
+            select: {
+              id: true,
+              courseCode: true,
+              courseTitle: true,
+            },
+          },
+          section: {
+            select: {
+              id: true,
+              name: true,
+              batch: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+          semester: {
+            select: {
+              id: true,
+              name: true,
+              startDate: true,
+              endDate: true,
+            },
+          },
+          teacherProfile: {
+            select: {
+              id: true,
+              teacherInitial: true,
+              teachersId: true,
+              designation: true,
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    orderBy: [{ schedule: { startTime: "asc" } }, { createdAt: "desc" }],
+  });
+};
+
+const createRoutine = async (userId: string, payload: ICreateRoutinePayload) => {
+  const context = await resolveScheduleRoutineManagementContext(userId, payload.departmentId);
+
+  if (!context.canManage) {
+    throw createHttpError(
+      403,
+      "Only department admins can set class routines. For non-university institutions, institution admins can do this.",
+    );
+  }
+
+  await assertRoutineHasNoOverlap(
+    context.institutionId,
+    context.departmentId,
+    payload.scheduleId,
+    payload.courseRegistrationId,
+    payload.classRoomId,
+  );
+
+  return routineDelegate().create({
+    data: {
+      name: payload.name.trim(),
+      description: payload.description?.trim() || null,
+      version: payload.version?.trim() || null,
+      scheduleId: payload.scheduleId,
+      courseRegistrationId: payload.courseRegistrationId,
+      classRoomId: payload.classRoomId,
+      institutionId: context.institutionId,
+      departmentId: context.departmentId,
+    },
+    include: {
+      schedule: true,
+      classRoom: true,
+      courseRegistration: {
+        include: {
+          course: true,
+          section: {
+            include: {
+              batch: true,
+            },
+          },
+          semester: true,
+          teacherProfile: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+};
+
+const updateRoutine = async (userId: string, routineId: string, payload: IUpdateRoutinePayload) => {
+  const context = await resolveScheduleRoutineManagementContext(userId);
+
+  if (!context.canManage) {
+    throw createHttpError(
+      403,
+      "Only department admins can update class routines. For non-university institutions, institution admins can do this.",
+    );
+  }
+
+  const current = await routineDelegate().findFirst({
+    where: {
+      id: routineId,
+      institutionId: context.institutionId,
+      departmentId: context.departmentId,
+    },
+    select: {
+      id: true,
+      scheduleId: true,
+      courseRegistrationId: true,
+      classRoomId: true,
+    },
+  });
+
+  if (!current) {
+    throw createHttpError(404, "Routine not found for this department");
+  }
+
+  const nextScheduleId = payload.scheduleId ?? current.scheduleId;
+  const nextCourseRegistrationId = payload.courseRegistrationId ?? current.courseRegistrationId;
+  const nextClassRoomId = payload.classRoomId ?? current.classRoomId;
+
+  await assertRoutineHasNoOverlap(
+    context.institutionId,
+    context.departmentId,
+    nextScheduleId,
+    nextCourseRegistrationId,
+    nextClassRoomId,
+    routineId,
+  );
+
+  return routineDelegate().update({
+    where: {
+      id: routineId,
+    },
+    data: {
+      name: payload.name?.trim(),
+      description: payload.description === undefined ? undefined : payload.description.trim() || null,
+      version: payload.version === undefined ? undefined : payload.version.trim() || null,
+      scheduleId: payload.scheduleId,
+      courseRegistrationId: payload.courseRegistrationId,
+      classRoomId: payload.classRoomId,
+    },
+    include: {
+      schedule: true,
+      classRoom: true,
+      courseRegistration: {
+        include: {
+          course: true,
+          section: {
+            include: {
+              batch: true,
+            },
+          },
+          semester: true,
+          teacherProfile: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+};
+
+const deleteRoutine = async (userId: string, routineId: string) => {
+  const context = await resolveScheduleRoutineManagementContext(userId);
+
+  if (!context.canManage) {
+    throw createHttpError(
+      403,
+      "Only department admins can delete class routines. For non-university institutions, institution admins can do this.",
+    );
+  }
+
+  const routine = await routineDelegate().findFirst({
+    where: {
+      id: routineId,
+      institutionId: context.institutionId,
+      departmentId: context.departmentId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!routine) {
+    throw createHttpError(404, "Routine not found for this department");
+  }
+
+  await routineDelegate().delete({
+    where: {
+      id: routineId,
+    },
+  });
+
+  return {
+    id: routineId,
+  };
 };
 
 const listBatches = async (userId: string, departmentId?: string, search?: string) => {
@@ -1097,7 +1848,12 @@ const deleteCourse = async (userId: string, courseId: string) => {
   };
 };
 
-const listCourseRegistrations = async (userId: string, departmentId?: string, search?: string) => {
+const listCourseRegistrations = async (
+  userId: string,
+  departmentId?: string,
+  search?: string,
+  semesterId?: string,
+) => {
   const context = await resolveDepartmentContext(userId, departmentId);
   const normalizedSearch = normalizeSearch(search);
 
@@ -1105,6 +1861,7 @@ const listCourseRegistrations = async (userId: string, departmentId?: string, se
     where: {
       institutionId: context.institutionId,
       departmentId: context.departmentId,
+      semesterId: semesterId || undefined,
       ...(normalizedSearch
         ? {
             OR: [
@@ -1869,13 +2626,19 @@ const deleteCourseRegistration = async (userId: string, courseRegistrationId: st
 };
 
 const listTeachers = async (userId: string, departmentId?: string, search?: string) => {
-  const context = await resolveDepartmentContext(userId, departmentId);
+  const scope = await resolveAcademicInstitutionContext(userId);
   const normalizedSearch = normalizeSearch(search);
+
+  let scopedDepartmentId: string | undefined;
+  if (scope.role === AdminRole.DEPARTMENTADMIN || departmentId) {
+    const context = await resolveDepartmentContext(userId, departmentId);
+    scopedDepartmentId = context.departmentId;
+  }
 
   return prisma.teacherProfile.findMany({
     where: {
-      institutionId: context.institutionId,
-      departmentId: context.departmentId,
+      institutionId: scope.institutionId,
+      departmentId: scopedDepartmentId,
       ...(normalizedSearch
         ? {
             OR: [
@@ -1970,13 +2733,15 @@ const updateTeacher = async (
   teacherProfileId: string,
   payload: IUpdateTeacherPayload,
 ) => {
-  const context = await resolveDepartmentContext(userId);
+  const scope = await resolveAcademicInstitutionContext(userId);
+  const departmentContext =
+    scope.role === AdminRole.DEPARTMENTADMIN ? await resolveDepartmentContext(userId) : null;
 
   const teacher = await prisma.teacherProfile.findFirst({
     where: {
       id: teacherProfileId,
-      institutionId: context.institutionId,
-      departmentId: context.departmentId,
+      institutionId: scope.institutionId,
+      departmentId: departmentContext?.departmentId,
     },
     select: {
       id: true,
@@ -2029,13 +2794,19 @@ const updateTeacher = async (
 };
 
 const listStudents = async (userId: string, departmentId?: string, search?: string) => {
-  const context = await resolveDepartmentContext(userId, departmentId);
+  const scope = await resolveAcademicInstitutionContext(userId);
   const normalizedSearch = normalizeSearch(search);
+
+  let scopedDepartmentId: string | undefined;
+  if (scope.role === AdminRole.DEPARTMENTADMIN || departmentId) {
+    const context = await resolveDepartmentContext(userId, departmentId);
+    scopedDepartmentId = context.departmentId;
+  }
 
   return prisma.studentProfile.findMany({
     where: {
-      institutionId: context.institutionId,
-      departmentId: context.departmentId,
+      institutionId: scope.institutionId,
+      departmentId: scopedDepartmentId,
       ...(normalizedSearch
         ? {
             OR: [
@@ -2126,13 +2897,15 @@ const updateStudent = async (
   studentProfileId: string,
   payload: IUpdateStudentPayload,
 ) => {
-  const context = await resolveDepartmentContext(userId);
+  const scope = await resolveAcademicInstitutionContext(userId);
+  const departmentContext =
+    scope.role === AdminRole.DEPARTMENTADMIN ? await resolveDepartmentContext(userId) : null;
 
   const student = await prisma.studentProfile.findFirst({
     where: {
       id: studentProfileId,
-      institutionId: context.institutionId,
-      departmentId: context.departmentId,
+      institutionId: scope.institutionId,
+      departmentId: departmentContext?.departmentId,
     },
     select: {
       id: true,
@@ -2181,6 +2954,588 @@ const updateStudent = async (
   });
 
   return result;
+};
+
+const removeTeacher = async (userId: string, teacherProfileId: string) => {
+  const context = await resolveAcademicInstitutionContext(userId);
+
+  const teacher = await prisma.teacherProfile.findFirst({
+    where: {
+      id: teacherProfileId,
+      institutionId: context.institutionId,
+    },
+    select: {
+      id: true,
+      userId: true,
+    },
+  });
+
+  if (!teacher) {
+    throw createHttpError(404, "Teacher not found for this institution");
+  }
+
+  await prisma.user.update({
+    where: {
+      id: teacher.userId,
+    },
+    data: {
+      accountStatus: AccountStatus.DEACTIVATED,
+    },
+  });
+
+  return {
+    teacherProfileId: teacher.id,
+    userId: teacher.userId,
+    accountStatus: AccountStatus.DEACTIVATED,
+  };
+};
+
+const removeStudent = async (userId: string, studentProfileId: string) => {
+  const context = await resolveAcademicInstitutionContext(userId);
+
+  const student = await prisma.studentProfile.findFirst({
+    where: {
+      id: studentProfileId,
+      institutionId: context.institutionId,
+    },
+    select: {
+      id: true,
+      userId: true,
+    },
+  });
+
+  if (!student) {
+    throw createHttpError(404, "Student not found for this institution");
+  }
+
+  await prisma.user.update({
+    where: {
+      id: student.userId,
+    },
+    data: {
+      accountStatus: AccountStatus.DEACTIVATED,
+    },
+  });
+
+  return {
+    studentProfileId: student.id,
+    userId: student.userId,
+    accountStatus: AccountStatus.DEACTIVATED,
+  };
+};
+
+const createInstitutionTransferRequest = async (
+  userId: string,
+  payload: ICreateInstitutionTransferRequestPayload,
+) => {
+  const context = await resolveAcademicInstitutionContext(userId);
+
+  if (payload.targetInstitutionId === context.institutionId) {
+    throw createHttpError(400, "Target institution must be different from source institution");
+  }
+
+  const targetInstitution = await prisma.institution.findUnique({
+    where: {
+      id: payload.targetInstitutionId,
+    },
+    select: {
+      id: true,
+      name: true,
+      shortName: true,
+      type: true,
+    },
+  });
+
+  if (!targetInstitution) {
+    throw createHttpError(404, "Target institution not found");
+  }
+
+  if (payload.entityType === InstitutionTransferEntityType.STUDENT) {
+    const studentProfile = await prisma.studentProfile.findFirst({
+      where: {
+        id: payload.profileId,
+        institutionId: context.institutionId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!studentProfile) {
+      throw createHttpError(404, "Student profile not found for this institution");
+    }
+
+    const existingPending = await prisma.institutionTransferRequest.findFirst({
+      where: {
+        studentProfileId: studentProfile.id,
+        status: InstitutionTransferStatus.PENDING,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (existingPending) {
+      throw createHttpError(409, "A pending transfer request already exists for this student");
+    }
+
+    return prisma.institutionTransferRequest.create({
+      data: {
+        entityType: payload.entityType,
+        sourceInstitutionId: context.institutionId,
+        targetInstitutionId: payload.targetInstitutionId,
+        requesterUserId: userId,
+        studentProfileId: studentProfile.id,
+        requestMessage: payload.requestMessage?.trim() || null,
+        requestedAt: new Date(),
+      },
+      include: {
+        sourceInstitution: {
+          select: {
+            id: true,
+            name: true,
+            shortName: true,
+          },
+        },
+        targetInstitution: {
+          select: {
+            id: true,
+            name: true,
+            shortName: true,
+          },
+        },
+        requesterUser: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        studentProfile: {
+          select: {
+            id: true,
+            studentsId: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  const teacherProfile = await prisma.teacherProfile.findFirst({
+    where: {
+      id: payload.profileId,
+      institutionId: context.institutionId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!teacherProfile) {
+    throw createHttpError(404, "Teacher profile not found for this institution");
+  }
+
+  const existingPending = await prisma.institutionTransferRequest.findFirst({
+    where: {
+      teacherProfileId: teacherProfile.id,
+      status: InstitutionTransferStatus.PENDING,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (existingPending) {
+    throw createHttpError(409, "A pending transfer request already exists for this teacher");
+  }
+
+  return prisma.institutionTransferRequest.create({
+    data: {
+      entityType: payload.entityType,
+      sourceInstitutionId: context.institutionId,
+      targetInstitutionId: payload.targetInstitutionId,
+      requesterUserId: userId,
+      teacherProfileId: teacherProfile.id,
+      requestMessage: payload.requestMessage?.trim() || null,
+      requestedAt: new Date(),
+    },
+    include: {
+      sourceInstitution: {
+        select: {
+          id: true,
+          name: true,
+          shortName: true,
+        },
+      },
+      targetInstitution: {
+        select: {
+          id: true,
+          name: true,
+          shortName: true,
+        },
+      },
+      requesterUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+      teacherProfile: {
+        select: {
+          id: true,
+          teacherInitial: true,
+          teachersId: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      },
+    },
+  });
+};
+
+const listOutgoingInstitutionTransferRequests = async (
+  userId: string,
+  query: IListInstitutionTransferRequestsQuery,
+) => {
+  const context = await resolveAcademicInstitutionContext(userId);
+
+  return prisma.institutionTransferRequest.findMany({
+    where: {
+      sourceInstitutionId: context.institutionId,
+      status: query.status,
+      entityType: query.entityType,
+    },
+    include: {
+      sourceInstitution: {
+        select: {
+          id: true,
+          name: true,
+          shortName: true,
+        },
+      },
+      targetInstitution: {
+        select: {
+          id: true,
+          name: true,
+          shortName: true,
+        },
+      },
+      requesterUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+      reviewerUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+      studentProfile: {
+        select: {
+          id: true,
+          studentsId: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      },
+      teacherProfile: {
+        select: {
+          id: true,
+          teacherInitial: true,
+          teachersId: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      },
+      targetDepartment: {
+        select: {
+          id: true,
+          fullName: true,
+          shortName: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+};
+
+const listIncomingInstitutionTransferRequests = async (
+  userId: string,
+  query: IListInstitutionTransferRequestsQuery,
+) => {
+  const context = await resolveAcademicInstitutionContext(userId);
+
+  return prisma.institutionTransferRequest.findMany({
+    where: {
+      targetInstitutionId: context.institutionId,
+      status: query.status,
+      entityType: query.entityType,
+    },
+    include: {
+      sourceInstitution: {
+        select: {
+          id: true,
+          name: true,
+          shortName: true,
+        },
+      },
+      targetInstitution: {
+        select: {
+          id: true,
+          name: true,
+          shortName: true,
+        },
+      },
+      requesterUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+      reviewerUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+      studentProfile: {
+        select: {
+          id: true,
+          studentsId: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      },
+      teacherProfile: {
+        select: {
+          id: true,
+          teacherInitial: true,
+          teachersId: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      },
+      targetDepartment: {
+        select: {
+          id: true,
+          fullName: true,
+          shortName: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+};
+
+const reviewInstitutionTransferRequest = async (
+  reviewerUserId: string,
+  transferRequestId: string,
+  payload: IReviewInstitutionTransferRequestPayload,
+) => {
+  const context = await resolveAcademicInstitutionContext(reviewerUserId);
+
+  const request = await prisma.institutionTransferRequest.findFirst({
+    where: {
+      id: transferRequestId,
+      targetInstitutionId: context.institutionId,
+    },
+    include: {
+      teacherProfile: {
+        select: {
+          id: true,
+          userId: true,
+        },
+      },
+      studentProfile: {
+        select: {
+          id: true,
+          userId: true,
+        },
+      },
+    },
+  });
+
+  if (!request) {
+    throw createHttpError(404, "Transfer request not found");
+  }
+
+  if (request.status !== InstitutionTransferStatus.PENDING) {
+    throw createHttpError(400, "Transfer request has already been reviewed");
+  }
+
+  if (payload.status === InstitutionTransferStatus.REJECTED) {
+    return prisma.institutionTransferRequest.update({
+      where: {
+        id: request.id,
+      },
+      data: {
+        status: InstitutionTransferStatus.REJECTED,
+        responseMessage: payload.responseMessage?.trim() || null,
+        reviewerUserId,
+        reviewedAt: new Date(),
+      },
+      include: {
+        sourceInstitution: true,
+        targetInstitution: true,
+        studentProfile: true,
+        teacherProfile: true,
+      },
+    });
+  }
+
+  if (request.entityType === InstitutionTransferEntityType.TEACHER) {
+    if (!request.teacherProfileId || !request.teacherProfile) {
+      throw createHttpError(400, "Teacher profile is missing for this transfer request");
+    }
+
+    const targetDepartmentId = payload.targetDepartmentId?.trim();
+    if (!targetDepartmentId) {
+      throw createHttpError(400, "targetDepartmentId is required to accept teacher transfer");
+    }
+
+    const targetDepartment = await prisma.department.findFirst({
+      where: {
+        id: targetDepartmentId,
+        faculty: {
+          institutionId: context.institutionId,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!targetDepartment) {
+      throw createHttpError(404, "Target department not found for target institution");
+    }
+
+    return prisma.$transaction(async (trx) => {
+      await trx.teacherProfile.update({
+        where: {
+          id: request.teacherProfileId as string,
+        },
+        data: {
+          institutionId: context.institutionId,
+          departmentId: targetDepartment.id,
+        },
+      });
+
+      await trx.user.update({
+        where: {
+          id: request.teacherProfile.userId,
+        },
+        data: {
+          accountStatus: AccountStatus.ACTIVE,
+        },
+      });
+
+      return trx.institutionTransferRequest.update({
+        where: {
+          id: request.id,
+        },
+        data: {
+          status: InstitutionTransferStatus.ACCEPTED,
+          responseMessage: payload.responseMessage?.trim() || null,
+          reviewerUserId,
+          reviewedAt: new Date(),
+          targetDepartmentId: targetDepartment.id,
+        },
+        include: {
+          sourceInstitution: true,
+          targetInstitution: true,
+          studentProfile: true,
+          teacherProfile: true,
+          targetDepartment: true,
+        },
+      });
+    });
+  }
+
+  if (!request.studentProfileId || !request.studentProfile) {
+    throw createHttpError(400, "Student profile is missing for this transfer request");
+  }
+
+  return prisma.$transaction(async (trx) => {
+    await trx.studentProfile.update({
+      where: {
+        id: request.studentProfileId as string,
+      },
+      data: {
+        institutionId: context.institutionId,
+        departmentId: null,
+      },
+    });
+
+    await trx.user.update({
+      where: {
+        id: request.studentProfile.userId,
+      },
+      data: {
+        accountStatus: AccountStatus.ACTIVE,
+      },
+    });
+
+    return trx.institutionTransferRequest.update({
+      where: {
+        id: request.id,
+      },
+      data: {
+        status: InstitutionTransferStatus.ACCEPTED,
+        responseMessage: payload.responseMessage?.trim() || null,
+        reviewerUserId,
+        reviewedAt: new Date(),
+      },
+      include: {
+        sourceInstitution: true,
+        targetInstitution: true,
+        studentProfile: true,
+        teacherProfile: true,
+      },
+    });
+  });
 };
 
 const getDashboardSummary = async (userId: string) => {
@@ -2786,6 +4141,10 @@ export const DepartmentService = {
   listSemesters,
   createSemester,
   updateSemester,
+  listSchedules,
+  createSchedule,
+  updateSchedule,
+  deleteSchedule,
   listBatches,
   createBatch,
   updateBatch,
@@ -2804,19 +4163,29 @@ export const DepartmentService = {
   listCourseRegistrations,
   listSectionCourseTeacherAssignments,
   upsertSectionCourseTeacherAssignment,
+  listRoutines,
+  createRoutine,
+  updateRoutine,
+  deleteRoutine,
   createCourseRegistration,
   updateCourseRegistration,
   deleteCourseRegistration,
   listTeachers,
   createTeacher,
   updateTeacher,
+  removeTeacher,
   listStudents,
   createStudent,
   updateStudent,
+  removeStudent,
   getDashboardSummary,
   listStudentAdmissionApplications,
   reviewStudentAdmissionApplication,
   upsertFeeConfiguration,
   listFeeConfigurations,
   getStudentPaymentInfoByStudentId,
+  createInstitutionTransferRequest,
+  listOutgoingInstitutionTransferRequests,
+  listIncomingInstitutionTransferRequests,
+  reviewInstitutionTransferRequest,
 };

@@ -676,6 +676,89 @@ const listRegisteredCourses = async (userId: string, query: IListStudentRegister
   });
 };
 
+const listRoutines = async (userId: string) => {
+  const { profile } = await resolveStudentInstitutionContext(userId);
+
+  const registrations = await prisma.courseRegistration.findMany({
+    where: {
+      studentProfileId: profile.id,
+      institutionId: profile.institutionId,
+    },
+    select: {
+      id: true,
+      sectionId: true,
+    },
+  });
+
+  const sectionIds = Array.from(new Set(registrations.map((item) => item.sectionId)));
+
+  if (sectionIds.length === 0) {
+    return [];
+  }
+
+  return (prisma as any).routine.findMany({
+    where: {
+      institutionId: profile.institutionId,
+      courseRegistration: {
+        sectionId: {
+          in: sectionIds,
+        },
+      },
+    },
+    include: {
+      schedule: true,
+      classRoom: true,
+      courseRegistration: {
+        include: {
+          course: {
+            select: {
+              id: true,
+              courseCode: true,
+              courseTitle: true,
+            },
+          },
+          section: {
+            select: {
+              id: true,
+              name: true,
+              batch: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+          semester: {
+            select: {
+              id: true,
+              name: true,
+              startDate: true,
+              endDate: true,
+            },
+          },
+          teacherProfile: {
+            select: {
+              id: true,
+              teacherInitial: true,
+              teachersId: true,
+              designation: true,
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    orderBy: [{ schedule: { startTime: "asc" } }, { createdAt: "desc" }],
+  });
+};
+
 const listResults = async (userId: string, query: IListStudentResultQuery) => {
   const { profile } = await resolveStudentInstitutionContext(userId);
 
@@ -1800,6 +1883,7 @@ export const StudentService = {
   updateProfile,
   listTimeline,
   listRegisteredCourses,
+  listRoutines,
   listResults,
   listSubmissions,
   createSubmission,

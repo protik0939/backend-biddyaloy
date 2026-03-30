@@ -23,4 +23,9 @@ const createInstitutionSchema = z.object({
 
 export const InstituteValidation = {
   createInstitutionSchema,
+  listInstitutionOptionsSchema: z.object({
+    query: z.object({
+      search: z.string().trim().min(1).max(120).optional(),
+    }),
+  }),
 };

@@ -1,0 +1,53 @@
+model Notice {
+    id String @id @default(uuid())
+    title String
+    content String
+
+    institutionId String
+    institution Institution @relation(fields: [institutionId], references: [id])
+
+    senderUserId String
+    senderUser User @relation("NoticeSenderUser", fields: [senderUserId], references: [id])
+    senderRole NoticeAudienceRole
+
+    recipients NoticeRecipientRole[]
+    reads NoticeRead[]
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([institutionId, createdAt])
+    @@index([senderUserId, createdAt])
+    @@map("notices")
+}
+
+model NoticeRecipientRole {
+    id String @id @default(uuid())
+
+    noticeId String
+    notice Notice @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+
+    role NoticeAudienceRole
+
+    createdAt DateTime @default(now())
+
+    @@unique([noticeId, role])
+    @@index([role])
+    @@map("notice_recipient_roles")
+}
+
+model NoticeRead {
+    id String @id @default(uuid())
+
+    noticeId String
+    notice Notice @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+
+    userId String
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    readAt DateTime @default(now())
+
+    @@unique([noticeId, userId])
+    @@index([userId, readAt])
+    @@map("notice_reads")
+}

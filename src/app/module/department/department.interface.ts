@@ -1,4 +1,9 @@
-import { AccountStatus, StudentAdmissionApplicationStatus } from "../../../generated/prisma/enums";
+import {
+  AccountStatus,
+  InstitutionTransferEntityType,
+  InstitutionTransferStatus,
+  StudentAdmissionApplicationStatus,
+} from "../../../generated/prisma/enums";
 
 export interface IUpdateDepartmentProfilePayload {
   fullName?: string;
@@ -18,6 +23,25 @@ export interface ICreateSemesterPayload {
   name: string;
   startDate: string;
   endDate: string;
+}
+
+export interface ICreateSchedulePayload {
+  name: string;
+  description?: string;
+  semesterId: string;
+  startTime: string;
+  endTime: string;
+  status?: "CLASS_SLOT" | "BREAK_SLOT";
+  departmentId?: string;
+}
+
+export interface IUpdateSchedulePayload {
+  name?: string;
+  description?: string;
+  semesterId?: string;
+  startTime?: string;
+  endTime?: string;
+  status?: "CLASS_SLOT" | "BREAK_SLOT";
 }
 
 export interface IUpdateSemesterPayload {
@@ -145,6 +169,25 @@ export interface IUpsertSectionCourseTeacherAssignmentPayload {
   departmentId?: string;
 }
 
+export interface ICreateRoutinePayload {
+  name: string;
+  description?: string;
+  version?: string;
+  scheduleId: string;
+  courseRegistrationId: string;
+  classRoomId: string;
+  departmentId?: string;
+}
+
+export interface IUpdateRoutinePayload {
+  name?: string;
+  description?: string;
+  version?: string;
+  scheduleId?: string;
+  courseRegistrationId?: string;
+  classRoomId?: string;
+}
+
 export interface IListStudentAdmissionApplicationsQuery {
   status?: StudentAdmissionApplicationStatus;
 }
@@ -166,4 +209,22 @@ export interface IUpsertDepartmentFeeConfigurationPayload {
 
 export interface IListDepartmentFeeConfigurationsQuery {
   semesterId?: string;
+}
+
+export interface ICreateInstitutionTransferRequestPayload {
+  entityType: InstitutionTransferEntityType;
+  profileId: string;
+  targetInstitutionId: string;
+  requestMessage?: string;
+}
+
+export interface IListInstitutionTransferRequestsQuery {
+  status?: InstitutionTransferStatus;
+  entityType?: InstitutionTransferEntityType;
+}
+
+export interface IReviewInstitutionTransferRequestPayload {
+  status: InstitutionTransferStatus;
+  responseMessage?: string;
+  targetDepartmentId?: string;
 }

@@ -5,204 +5,283 @@ import { DepartmentController } from "./department.controller";
 import { DepartmentValidation } from "./department.validation";
 
 const router = Router();
+const departmentRoles: ["ADMIN", "FACULTY", "DEPARTMENT"] = ["ADMIN", "FACULTY", "DEPARTMENT"];
 
-router.get("/profile", requireSessionRole("ADMIN", "DEPARTMENT"), DepartmentController.getDepartmentProfile);
+router.get("/profile", requireSessionRole(...departmentRoles), DepartmentController.getDepartmentProfile);
 router.get(
   "/dashboard-summary",
-  requireSessionRole("ADMIN", "DEPARTMENT"),
+  requireSessionRole(...departmentRoles),
   DepartmentController.getDashboardSummary,
 );
 router.patch(
   "/profile",
-  requireSessionRole("ADMIN", "DEPARTMENT"),
+  requireSessionRole(...departmentRoles),
   validateRequest(DepartmentValidation.updateDepartmentProfileSchema),
   DepartmentController.updateDepartmentProfile,
 );
 
-router.get("/semesters", requireSessionRole("ADMIN", "DEPARTMENT"), DepartmentController.listSemesters);
+router.get("/semesters", requireSessionRole(...departmentRoles), DepartmentController.listSemesters);
 router.post(
   "/semesters",
-  requireSessionRole("ADMIN", "DEPARTMENT"),
+  requireSessionRole(...departmentRoles),
   validateRequest(DepartmentValidation.createSemesterSchema),
   DepartmentController.createSemester,
 );
+router.get("/schedules", requireSessionRole(...departmentRoles), DepartmentController.listSchedules);
+router.post(
+  "/schedules",
+  requireSessionRole(...departmentRoles),
+  validateRequest(DepartmentValidation.createScheduleSchema),
+  DepartmentController.createSchedule,
+);
+router.patch(
+  "/schedules/:scheduleId",
+  requireSessionRole(...departmentRoles),
+  validateRequest(DepartmentValidation.updateScheduleSchema),
+  DepartmentController.updateSchedule,
+);
+router.delete(
+  "/schedules/:scheduleId",
+  requireSessionRole(...departmentRoles),
+  validateRequest(DepartmentValidation.deleteScheduleSchema),
+  DepartmentController.deleteSchedule,
+);
 router.patch(
   "/semesters/:semesterId",
-  requireSessionRole("ADMIN", "DEPARTMENT"),
+  requireSessionRole(...departmentRoles),
   validateRequest(DepartmentValidation.updateSemesterSchema),
   DepartmentController.updateSemester,
 );
 
-router.get("/batches", requireSessionRole("ADMIN", "DEPARTMENT"), DepartmentController.listBatches);
+router.get("/batches", requireSessionRole(...departmentRoles), DepartmentController.listBatches);
 router.post(
   "/batches",
-  requireSessionRole("ADMIN", "DEPARTMENT"),
+  requireSessionRole(...departmentRoles),
   validateRequest(DepartmentValidation.createBatchSchema),
   DepartmentController.createBatch,
 );
 router.patch(
   "/batches/:batchId",
-  requireSessionRole("ADMIN", "DEPARTMENT"),
+  requireSessionRole(...departmentRoles),
   validateRequest(DepartmentValidation.updateBatchSchema),
   DepartmentController.updateBatch,
 );
 router.delete(
   "/batches/:batchId",
-  requireSessionRole("ADMIN", "DEPARTMENT"),
+  requireSessionRole(...departmentRoles),
   validateRequest(DepartmentValidation.deleteBatchSchema),
   DepartmentController.deleteBatch,
 );
 
-router.get("/sections", requireSessionRole("ADMIN", "DEPARTMENT"), DepartmentController.listSections);
+router.get("/sections", requireSessionRole(...departmentRoles), DepartmentController.listSections);
 router.post(
   "/sections",
-  requireSessionRole("ADMIN", "DEPARTMENT"),
+  requireSessionRole(...departmentRoles),
   validateRequest(DepartmentValidation.createSectionSchema),
   DepartmentController.createSection,
 );
 router.patch(
   "/sections/:sectionId",
-  requireSessionRole("ADMIN", "DEPARTMENT"),
+  requireSessionRole(...departmentRoles),
   validateRequest(DepartmentValidation.updateSectionSchema),
   DepartmentController.updateSection,
 );
 router.delete(
   "/sections/:sectionId",
-  requireSessionRole("ADMIN", "DEPARTMENT"),
+  requireSessionRole(...departmentRoles),
   validateRequest(DepartmentValidation.deleteSectionSchema),
   DepartmentController.deleteSection,
 );
 
-router.get("/programs", requireSessionRole("ADMIN", "DEPARTMENT"), DepartmentController.listPrograms);
+router.get("/programs", requireSessionRole(...departmentRoles), DepartmentController.listPrograms);
 router.post(
   "/programs",
-  requireSessionRole("ADMIN", "DEPARTMENT"),
+  requireSessionRole(...departmentRoles),
   validateRequest(DepartmentValidation.createProgramSchema),
   DepartmentController.createProgram,
 );
 router.patch(
   "/programs/:programId",
-  requireSessionRole("ADMIN", "DEPARTMENT"),
+  requireSessionRole(...departmentRoles),
   validateRequest(DepartmentValidation.updateProgramSchema),
   DepartmentController.updateProgram,
 );
 
-router.get("/courses", requireSessionRole("ADMIN", "DEPARTMENT"), DepartmentController.listCourses);
+router.get("/courses", requireSessionRole(...departmentRoles), DepartmentController.listCourses);
 router.post(
   "/courses",
-  requireSessionRole("ADMIN", "DEPARTMENT"),
+  requireSessionRole(...departmentRoles),
   validateRequest(DepartmentValidation.createCourseSchema),
   DepartmentController.createCourse,
 );
 router.patch(
   "/courses/:courseId",
-  requireSessionRole("ADMIN", "DEPARTMENT"),
+  requireSessionRole(...departmentRoles),
   validateRequest(DepartmentValidation.updateCourseSchema),
   DepartmentController.updateCourse,
 );
 router.delete(
   "/courses/:courseId",
-  requireSessionRole("ADMIN", "DEPARTMENT"),
+  requireSessionRole(...departmentRoles),
   validateRequest(DepartmentValidation.deleteCourseSchema),
   DepartmentController.deleteCourse,
 );
 
 router.get(
   "/course-registrations",
-  requireSessionRole("ADMIN", "DEPARTMENT"),
+  requireSessionRole(...departmentRoles),
   DepartmentController.listCourseRegistrations,
 );
 router.get(
   "/course-teacher-assignments",
-  requireSessionRole("ADMIN", "DEPARTMENT"),
+  requireSessionRole(...departmentRoles),
   DepartmentController.listSectionCourseTeacherAssignments,
 );
 router.post(
   "/course-teacher-assignments",
-  requireSessionRole("ADMIN", "DEPARTMENT"),
+  requireSessionRole(...departmentRoles),
   validateRequest(DepartmentValidation.upsertSectionCourseTeacherAssignmentSchema),
   DepartmentController.upsertSectionCourseTeacherAssignment,
 );
 router.post(
   "/course-registrations",
-  requireSessionRole("ADMIN", "DEPARTMENT"),
+  requireSessionRole(...departmentRoles),
   validateRequest(DepartmentValidation.createCourseRegistrationSchema),
   DepartmentController.createCourseRegistration,
 );
+router.get("/routines", requireSessionRole(...departmentRoles), DepartmentController.listRoutines);
+router.post(
+  "/routines",
+  requireSessionRole(...departmentRoles),
+  validateRequest(DepartmentValidation.createRoutineSchema),
+  DepartmentController.createRoutine,
+);
+router.patch(
+  "/routines/:routineId",
+  requireSessionRole(...departmentRoles),
+  validateRequest(DepartmentValidation.updateRoutineSchema),
+  DepartmentController.updateRoutine,
+);
+router.delete(
+  "/routines/:routineId",
+  requireSessionRole(...departmentRoles),
+  validateRequest(DepartmentValidation.deleteRoutineSchema),
+  DepartmentController.deleteRoutine,
+);
 router.patch(
   "/course-registrations/:courseRegistrationId",
-  requireSessionRole("ADMIN", "DEPARTMENT"),
+  requireSessionRole(...departmentRoles),
   validateRequest(DepartmentValidation.updateCourseRegistrationSchema),
   DepartmentController.updateCourseRegistration,
 );
 router.delete(
   "/course-registrations/:courseRegistrationId",
-  requireSessionRole("ADMIN", "DEPARTMENT"),
+  requireSessionRole(...departmentRoles),
   validateRequest(DepartmentValidation.deleteCourseRegistrationSchema),
   DepartmentController.deleteCourseRegistration,
 );
 
-router.get("/teachers", requireSessionRole("ADMIN", "DEPARTMENT"), DepartmentController.listTeachers);
+router.get("/teachers", requireSessionRole(...departmentRoles), DepartmentController.listTeachers);
 router.post(
   "/teachers",
-  requireSessionRole("ADMIN", "DEPARTMENT"),
+  requireSessionRole(...departmentRoles),
   validateRequest(DepartmentValidation.createTeacherSchema),
   DepartmentController.createTeacher,
 );
 router.patch(
   "/teachers/:teacherProfileId",
-  requireSessionRole("ADMIN", "DEPARTMENT"),
+  requireSessionRole(...departmentRoles),
   validateRequest(DepartmentValidation.updateTeacherSchema),
   DepartmentController.updateTeacher,
 );
+router.delete(
+  "/teachers/:teacherProfileId/remove",
+  requireSessionRole(...departmentRoles),
+  validateRequest(DepartmentValidation.removeTeacherSchema),
+  DepartmentController.removeTeacher,
+);
 
-router.get("/students", requireSessionRole("ADMIN", "DEPARTMENT"), DepartmentController.listStudents);
+router.get("/students", requireSessionRole(...departmentRoles), DepartmentController.listStudents);
 router.post(
   "/students",
-  requireSessionRole("ADMIN", "DEPARTMENT"),
+  requireSessionRole(...departmentRoles),
   validateRequest(DepartmentValidation.createStudentSchema),
   DepartmentController.createStudent,
 );
 router.patch(
   "/students/:studentProfileId",
-  requireSessionRole("ADMIN", "DEPARTMENT"),
+  requireSessionRole(...departmentRoles),
   validateRequest(DepartmentValidation.updateStudentSchema),
   DepartmentController.updateStudent,
+);
+router.delete(
+  "/students/:studentProfileId/remove",
+  requireSessionRole(...departmentRoles),
+  validateRequest(DepartmentValidation.removeStudentSchema),
+  DepartmentController.removeStudent,
 );
 
 router.get(
   "/student-applications",
-  requireSessionRole("ADMIN", "DEPARTMENT"),
+  requireSessionRole(...departmentRoles),
   validateRequest(DepartmentValidation.listStudentAdmissionApplicationsSchema),
   DepartmentController.listStudentAdmissionApplications,
 );
 
 router.patch(
   "/student-applications/:applicationId/review",
-  requireSessionRole("ADMIN", "DEPARTMENT"),
+  requireSessionRole(...departmentRoles),
   validateRequest(DepartmentValidation.reviewStudentAdmissionApplicationSchema),
   DepartmentController.reviewStudentAdmissionApplication,
 );
 
 router.get(
   "/fees/configurations",
-  requireSessionRole("ADMIN", "DEPARTMENT"),
+  requireSessionRole(...departmentRoles),
   validateRequest(DepartmentValidation.listFeeConfigurationsSchema),
   DepartmentController.listFeeConfigurations,
 );
 
 router.post(
   "/fees/configurations",
-  requireSessionRole("ADMIN", "DEPARTMENT"),
+  requireSessionRole(...departmentRoles),
   validateRequest(DepartmentValidation.upsertFeeConfigurationSchema),
   DepartmentController.upsertFeeConfiguration,
 );
 
 router.get(
   "/fees/students/:studentsId",
-  requireSessionRole("ADMIN", "DEPARTMENT"),
+  requireSessionRole(...departmentRoles),
   validateRequest(DepartmentValidation.getStudentPaymentInfoSchema),
   DepartmentController.getStudentPaymentInfoByStudentId,
+);
+
+router.post(
+  "/transfers",
+  requireSessionRole(...departmentRoles),
+  validateRequest(DepartmentValidation.createInstitutionTransferRequestSchema),
+  DepartmentController.createInstitutionTransferRequest,
+);
+
+router.get(
+  "/transfers/outgoing",
+  requireSessionRole(...departmentRoles),
+  validateRequest(DepartmentValidation.listInstitutionTransferRequestsSchema),
+  DepartmentController.listOutgoingInstitutionTransferRequests,
+);
+
+router.get(
+  "/transfers/incoming",
+  requireSessionRole(...departmentRoles),
+  validateRequest(DepartmentValidation.listInstitutionTransferRequestsSchema),
+  DepartmentController.listIncomingInstitutionTransferRequests,
+);
+
+router.patch(
+  "/transfers/:transferRequestId/review",
+  requireSessionRole(...departmentRoles),
+  validateRequest(DepartmentValidation.reviewInstitutionTransferRequestSchema),
+  DepartmentController.reviewInstitutionTransferRequest,
 );
 
 export const DepartmentRouter = router;

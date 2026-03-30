@@ -15,6 +15,20 @@ const createInstitution = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const listInstitutionOptions = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const search = typeof req.query.search === "string" ? req.query.search : undefined;
+  const result = await InstituteService.listInstitutionOptions(user.id, search);
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Institution options fetched successfully",
+    data: result,
+  });
+});
+
 export const InstituteController = {
   createInstitution,
+  listInstitutionOptions,
 };

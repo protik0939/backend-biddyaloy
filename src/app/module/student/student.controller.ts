@@ -153,6 +153,18 @@ const listRegisteredCourses = catchAsync(async (req: Request, res: Response) => 
   });
 });
 
+const listRoutines = catchAsync(async (_req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await StudentService.listRoutines(user.id);
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Student routines fetched successfully",
+    data: result,
+  });
+});
+
 const listResults = catchAsync(async (req: Request, res: Response) => {
   const user = res.locals.authUser as { id: string };
   const semesterId = typeof req.query.semesterId === "string" ? req.query.semesterId : "";
@@ -287,6 +299,7 @@ export const StudentController = {
   updateProfile,
   listTimeline,
   listRegisteredCourses,
+  listRoutines,
   listResults,
   listSubmissions,
   createSubmission,

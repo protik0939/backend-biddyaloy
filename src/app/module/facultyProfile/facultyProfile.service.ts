@@ -14,10 +14,7 @@ function createHttpError(statusCode: number, message: string) {
   return error;
 }
 
-const updateFacultyDisplayName = async (
-  userId: string,
-  payload: IUpdateFacultyDisplayNamePayload,
-): Promise<IUpdatedFacultyDisplayNameResult> => {
+async function resolveFacultyManagementContext(userId: string) {
   const adminProfile = await prisma.adminProfile.findUnique({
     where: {
       userId,
@@ -28,9 +25,26 @@ const updateFacultyDisplayName = async (
     },
   });
 
-  if (adminProfile?.role !== AdminRole.FACULTYADMIN) {
-    throw createHttpError(403, "Only faculty admins can update faculty display name");
+  if (!adminProfile?.institutionId) {
+    throw createHttpError(403, "Only faculty-level admins can access this resource");
   }
+
+  const canUseFacultyFeatures =
+    adminProfile.role === AdminRole.FACULTYADMIN ||
+    adminProfile.role === AdminRole.INSTITUTIONADMIN;
+
+  if (!canUseFacultyFeatures) {
+    throw createHttpError(403, "Only faculty-level admins can access this resource");
+  }
+
+  return adminProfile;
+}
+
+const updateFacultyDisplayName = async (
+  userId: string,
+  payload: IUpdateFacultyDisplayNamePayload,
+): Promise<IUpdatedFacultyDisplayNameResult> => {
+  const adminProfile = await resolveFacultyManagementContext(userId);
 
   const normalizedName = (payload.fullName ?? payload.name ?? "").trim();
   const hasFacultyMutation =
@@ -192,19 +206,7 @@ const updateFacultyDisplayName = async (
 };
 
 const getFacultyProfileDetails = async (userId: string): Promise<IFacultyProfileDetailsResult> => {
-  const adminProfile = await prisma.adminProfile.findUnique({
-    where: {
-      userId,
-    },
-    select: {
-      role: true,
-      institutionId: true,
-    },
-  });
-
-  if (adminProfile?.role !== AdminRole.FACULTYADMIN) {
-    throw createHttpError(403, "Only faculty admins can view faculty profile");
-  }
+  const adminProfile = await resolveFacultyManagementContext(userId);
 
   const faculty = await prisma.faculty.findFirst({
     where: {
@@ -248,6 +250,7 @@ const getFacultyProfileDetails = async (userId: string): Promise<IFacultyProfile
           name: true,
           shortName: true,
           institutionLogo: true,
+          type: true,
         },
       })
     : null;
@@ -328,19 +331,7 @@ const createDepartment = async (
   userId: string,
   payload: ICreateFacultyDepartmentPayload,
 ): Promise<IFacultyDepartmentResult> => {
-  const adminProfile = await prisma.adminProfile.findUnique({
-    where: {
-      userId,
-    },
-    select: {
-      role: true,
-      institutionId: true,
-    },
-  });
-
-  if (adminProfile?.role !== AdminRole.FACULTYADMIN) {
-    throw createHttpError(403, "Only faculty admins can create departments");
-  }
+  const adminProfile = await resolveFacultyManagementContext(userId);
 
   let targetFacultyId: string | undefined = payload.facultyId;
 

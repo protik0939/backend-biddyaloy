@@ -1,23 +1,29 @@
 import { Router } from "express";
+import { ClassroomRouter } from "../module/classroom/classroom.route";
 import { DepartmentRouter } from "../module/department/department.route";
 import { AuthRoutes } from "../module/auth/auth.route";
 import { FacultyProfileRouter } from "../module/facultyProfile/facultyProfile.route";
 import { InstituteRoutes } from "../module/institute/institute.route";
 import { InstitutionAdminRouter } from "../module/institutionAdmin/institutionAdmin.route";
 import { InstitutionApplicationRouter } from "../module/institutionApplication/institutionApplication.route";
+import { NoticeRouter } from "../module/notice/notice.route";
 import { PostingRouter } from "../module/posting/posting.route";
+import { RoutineRouter } from "../module/routine/routine.route";
 import { StudentRouter } from "../module/student/student.route";
 import { TeacherRouter } from "../module/teacher/teacher.route";
 
 const router = Router();
 
 router.use("/auth", AuthRoutes);
+router.use("/classrooms", ClassroomRouter);
 router.use("/department", DepartmentRouter);
 router.use("/faculty", FacultyProfileRouter);
 router.use("/institute", InstituteRoutes);
 router.use("/institution-applications", InstitutionApplicationRouter);
 router.use("/institution-admin", InstitutionAdminRouter);
+router.use("/notices", NoticeRouter);
 router.use("/postings", PostingRouter);
+router.use("/routines", RoutineRouter);
 router.use("/teacher", TeacherRouter);
 router.use("/student", StudentRouter);
 

@@ -1,7 +1,15 @@
-import { AccountStatus } from "../../../generated/prisma/enums";
+import {
+  AccountStatus,
+  InstitutionTransferEntityType,
+  InstitutionTransferStatus,
+  SlotStatus,
+} from "../../../generated/prisma/enums";
 import { z } from "zod";
 
 const uuidSchema = z.uuid("Please provide a valid id");
+const timeStringSchema = z
+  .string("Time must be a string")
+  .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Time must be in HH:mm format");
 
 const passwordSchema = z
   .string("Password is required")
@@ -42,6 +50,42 @@ export const DepartmentValidation = {
       name: z.string("Semester name is required").trim().min(2).max(80),
       startDate: z.iso.datetime("startDate must be a valid ISO datetime"),
       endDate: z.iso.datetime("endDate must be a valid ISO datetime"),
+    }),
+  }),
+
+  createScheduleSchema: z.object({
+    body: z.object({
+      name: z.string("Class slot name is required").trim().min(2).max(120),
+      description: z.string("Description must be a string").trim().max(500).optional(),
+      semesterId: uuidSchema,
+      startTime: timeStringSchema,
+      endTime: timeStringSchema,
+      status: z.enum(SlotStatus).optional(),
+      departmentId: uuidSchema.optional(),
+    }),
+  }),
+
+  updateScheduleSchema: z.object({
+    params: z.object({
+      scheduleId: uuidSchema,
+    }),
+    body: z
+      .object({
+        name: z.string("Class slot name must be a string").trim().min(2).max(120).optional(),
+        description: z.string("Description must be a string").trim().max(500).optional(),
+        semesterId: uuidSchema.optional(),
+        startTime: timeStringSchema.optional(),
+        endTime: timeStringSchema.optional(),
+        status: z.enum(SlotStatus).optional(),
+      })
+      .refine((value) => Object.keys(value).length > 0, {
+        message: "At least one field is required",
+      }),
+  }),
+
+  deleteScheduleSchema: z.object({
+    params: z.object({
+      scheduleId: uuidSchema,
     }),
   }),
 
@@ -229,6 +273,42 @@ export const DepartmentValidation = {
     }),
   }),
 
+  createRoutineSchema: z.object({
+    body: z.object({
+      name: z.string("Routine name is required").trim().min(2).max(120),
+      description: z.string("Description must be a string").trim().max(500).optional(),
+      version: z.string("Version must be a string").trim().max(80).optional(),
+      scheduleId: uuidSchema,
+      courseRegistrationId: uuidSchema,
+      classRoomId: uuidSchema,
+      departmentId: uuidSchema.optional(),
+    }),
+  }),
+
+  updateRoutineSchema: z.object({
+    params: z.object({
+      routineId: uuidSchema,
+    }),
+    body: z
+      .object({
+        name: z.string("Routine name must be a string").trim().min(2).max(120).optional(),
+        description: z.string("Description must be a string").trim().max(500).optional(),
+        version: z.string("Version must be a string").trim().max(80).optional(),
+        scheduleId: uuidSchema.optional(),
+        courseRegistrationId: uuidSchema.optional(),
+        classRoomId: uuidSchema.optional(),
+      })
+      .refine((value) => Object.keys(value).length > 0, {
+        message: "At least one field is required",
+      }),
+  }),
+
+  deleteRoutineSchema: z.object({
+    params: z.object({
+      routineId: uuidSchema,
+    }),
+  }),
+
   createTeacherSchema: z.object({
     body: z.object({
       name: z.string("Name is required").trim().min(2).max(60),
@@ -337,6 +417,45 @@ export const DepartmentValidation = {
     }),
     query: z.object({
       semesterId: uuidSchema.optional(),
+    }),
+  }),
+
+  removeTeacherSchema: z.object({
+    params: z.object({
+      teacherProfileId: uuidSchema,
+    }),
+  }),
+
+  removeStudentSchema: z.object({
+    params: z.object({
+      studentProfileId: uuidSchema,
+    }),
+  }),
+
+  createInstitutionTransferRequestSchema: z.object({
+    body: z.object({
+      entityType: z.enum(InstitutionTransferEntityType),
+      profileId: uuidSchema,
+      targetInstitutionId: uuidSchema,
+      requestMessage: z.string("requestMessage must be a string").trim().max(1200).optional(),
+    }),
+  }),
+
+  listInstitutionTransferRequestsSchema: z.object({
+    query: z.object({
+      status: z.enum(InstitutionTransferStatus).optional(),
+      entityType: z.enum(InstitutionTransferEntityType).optional(),
+    }),
+  }),
+
+  reviewInstitutionTransferRequestSchema: z.object({
+    params: z.object({
+      transferRequestId: uuidSchema,
+    }),
+    body: z.object({
+      status: z.enum([InstitutionTransferStatus.ACCEPTED, InstitutionTransferStatus.REJECTED]),
+      responseMessage: z.string("responseMessage must be a string").trim().max(1200).optional(),
+      targetDepartmentId: uuidSchema.optional(),
     }),
   }),
 };

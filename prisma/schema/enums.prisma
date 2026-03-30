@@ -110,3 +110,23 @@ enum StudentFeePaymentStatus {
     FAILED
     CANCELLED
 }
+
+enum InstitutionTransferEntityType {
+    STUDENT
+    TEACHER
+}
+
+enum InstitutionTransferStatus {
+    PENDING
+    ACCEPTED
+    REJECTED
+    CANCELLED
+}
+
+enum NoticeAudienceRole {
+    ADMIN
+    FACULTY
+    DEPARTMENT
+    TEACHER
+    STUDENT
+}
