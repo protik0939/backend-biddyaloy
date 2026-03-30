@@ -3730,6 +3730,7 @@ var reviewInstitutionTransferRequest = async (reviewerUserId, transferRequestId,
     if (!request.teacherProfileId || !request.teacherProfile) {
       throw createHttpError2(400, "Teacher profile is missing for this transfer request");
     }
+    const teacherProfile = request.teacherProfile;
     const targetDepartmentId = payload.targetDepartmentId?.trim();
     if (!targetDepartmentId) {
       throw createHttpError2(400, "targetDepartmentId is required to accept teacher transfer");
@@ -3760,7 +3761,7 @@ var reviewInstitutionTransferRequest = async (reviewerUserId, transferRequestId,
       });
       await trx.user.update({
         where: {
-          id: request.teacherProfile.userId
+          id: teacherProfile.userId
         },
         data: {
           accountStatus: AccountStatus.ACTIVE
@@ -3790,6 +3791,7 @@ var reviewInstitutionTransferRequest = async (reviewerUserId, transferRequestId,
   if (!request.studentProfileId || !request.studentProfile) {
     throw createHttpError2(400, "Student profile is missing for this transfer request");
   }
+  const studentProfile = request.studentProfile;
   return prisma.$transaction(async (trx) => {
     await trx.studentProfile.update({
       where: {
@@ -3802,7 +3804,7 @@ var reviewInstitutionTransferRequest = async (reviewerUserId, transferRequestId,
     });
     await trx.user.update({
       where: {
-        id: request.studentProfile.userId
+        id: studentProfile.userId
       },
       data: {
         accountStatus: AccountStatus.ACTIVE
