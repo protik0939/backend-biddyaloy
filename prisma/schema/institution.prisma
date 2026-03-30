@@ -26,6 +26,7 @@ model Institution {
     feeConfigurations DepartmentSemesterFeeConfiguration[]
     feePayments StudentFeePayment[]
     paymentGatewayCredential InstitutionPaymentGatewayCredential?
+    renewalPayments InstitutionSubscriptionRenewalPayment[]
     subscriptions InstitutionSubscription[]
     schedules Schedule[]
     routines Routine[]

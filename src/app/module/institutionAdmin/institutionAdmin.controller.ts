@@ -89,6 +89,45 @@ const upsertSslCommerzCredential = catchAsync(async (req: Request, res: Response
   });
 });
 
+const initiateSubscriptionRenewal = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await InstitutionAdminService.initiateSubscriptionRenewal(user.id, req.body);
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Subscription renewal payment initiated successfully",
+    data: result,
+  });
+});
+
+const handleRenewalPaymentSuccess = catchAsync(async (req: Request, res: Response) => {
+  const result = await InstitutionAdminService.handleSubscriptionRenewalPaymentCallback(
+    "success",
+    req.query as Record<string, unknown>,
+  );
+
+  res.redirect(result.redirectUrl);
+});
+
+const handleRenewalPaymentFail = catchAsync(async (req: Request, res: Response) => {
+  const result = await InstitutionAdminService.handleSubscriptionRenewalPaymentCallback(
+    "failed",
+    req.query as Record<string, unknown>,
+  );
+
+  res.redirect(result.redirectUrl);
+});
+
+const handleRenewalPaymentCancel = catchAsync(async (req: Request, res: Response) => {
+  const result = await InstitutionAdminService.handleSubscriptionRenewalPaymentCallback(
+    "cancelled",
+    req.query as Record<string, unknown>,
+  );
+
+  res.redirect(result.redirectUrl);
+});
+
 const listSemesters = catchAsync(async (_req: Request, res: Response) => {
   const user = res.locals.authUser as { id: string };
   const result = await InstitutionAdminService.listSemesters(user.id);
@@ -149,6 +188,10 @@ export const InstitutionAdminController = {
   updateProfile,
   getSslCommerzCredential,
   upsertSslCommerzCredential,
+  initiateSubscriptionRenewal,
+  handleRenewalPaymentSuccess,
+  handleRenewalPaymentFail,
+  handleRenewalPaymentCancel,
   createSubAdminAccount,
   listFaculties,
   listSemesters,

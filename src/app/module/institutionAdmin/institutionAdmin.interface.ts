@@ -41,3 +41,7 @@ export interface IUpsertInstitutionSslCommerzCredentialPayload {
   storePassword?: string;
   baseUrl?: string;
 }
+
+export interface IInitiateInstitutionSubscriptionRenewalPayload {
+  plan: "MONTHLY" | "HALF_YEARLY" | "YEARLY";
+}

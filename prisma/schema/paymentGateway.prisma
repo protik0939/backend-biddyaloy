@@ -16,3 +16,29 @@ model InstitutionPaymentGatewayCredential {
     @@index([institutionId, isActive])
     @@map("institution_payment_gateway_credentials")
 }
+
+model InstitutionSubscriptionRenewalPayment {
+    id String @id @default(uuid())
+    institutionId String
+    institution Institution @relation(fields: [institutionId], references: [id])
+    initiatedByUserId String
+    plan InstitutionSubscriptionPlan
+    amount Decimal @db.Decimal(12, 2)
+    currency String @default("BDT")
+    monthsCovered Int
+    status InstitutionSubscriptionPaymentStatus @default(PENDING)
+    tranId String @unique
+    gatewayStatus String?
+    gatewaySessionKey String? @unique
+    gatewayValId String?
+    gatewayBankTranId String?
+    gatewayCardType String?
+    gatewayRawPayload Json?
+    paidAt DateTime?
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([institutionId, status, createdAt])
+    @@index([initiatedByUserId, status])
+    @@map("institution_subscription_renewal_payments")
+}

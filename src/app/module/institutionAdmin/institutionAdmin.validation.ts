@@ -76,6 +76,12 @@ export const InstitutionAdminValidation = {
       }),
   }),
 
+  initiateSubscriptionRenewalSchema: z.object({
+    body: z.object({
+      plan: z.enum(["MONTHLY", "HALF_YEARLY", "YEARLY"]),
+    }),
+  }),
+
   createSubAdminSchema: z.object({
     body: z.object({
       name: z
