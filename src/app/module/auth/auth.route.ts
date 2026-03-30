@@ -43,7 +43,7 @@ router.post(
 );
 router.post(
 	"/leave-institution",
-	requireSessionRole("ADMIN", "TEACHER"),
+	requireSessionRole("ADMIN", "TEACHER", "STUDENT"),
 	validateRequest(AuthValidation.leaveInstitutionSchema),
 	AuthController.leaveInstitution,
 );

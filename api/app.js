@@ -6582,27 +6582,49 @@ function createHttpError4(statusCode, message) {
   return error;
 }
 var requestInstitutionLeave = async (userId, userRole, payload) => {
-  if (userRole !== "ADMIN" && userRole !== "TEACHER") {
-    throw createHttpError4(403, "Only admin or teacher can request institution leave");
+  if (userRole !== "ADMIN" && userRole !== "TEACHER" && userRole !== "STUDENT") {
+    throw createHttpError4(403, "Only admin, teacher, or student can request institution leave");
   }
-  const context = userRole === "ADMIN" ? await prisma.adminProfile.findUnique({
-    where: {
-      userId
-    },
-    select: {
-      institutionId: true
-    }
-  }) : await prisma.teacherProfile.findFirst({
-    where: {
-      userId
-    },
-    select: {
-      institutionId: true
-    },
-    orderBy: {
-      createdAt: "desc"
-    }
-  });
+  let context = null;
+  if (userRole === "ADMIN") {
+    const adminProfile = await prisma.adminProfile.findUnique({
+      where: {
+        userId
+      },
+      select: {
+        institutionId: true
+      }
+    });
+    context = adminProfile?.institutionId ? { institutionId: adminProfile.institutionId } : null;
+  }
+  if (userRole === "TEACHER") {
+    const teacherProfile = await prisma.teacherProfile.findFirst({
+      where: {
+        userId
+      },
+      select: {
+        institutionId: true
+      },
+      orderBy: {
+        createdAt: "desc"
+      }
+    });
+    context = teacherProfile?.institutionId ? { institutionId: teacherProfile.institutionId } : null;
+  }
+  if (userRole === "STUDENT") {
+    const studentProfile = await prisma.studentProfile.findFirst({
+      where: {
+        userId
+      },
+      select: {
+        institutionId: true
+      },
+      orderBy: {
+        createdAt: "desc"
+      }
+    });
+    context = studentProfile?.institutionId ? { institutionId: studentProfile.institutionId } : null;
+  }
   if (!context?.institutionId) {
     throw createHttpError4(400, "No institution assignment found for this account");
   }
@@ -6924,7 +6946,7 @@ router3.post(
 );
 router3.post(
   "/leave-institution",
-  requireSessionRole("ADMIN", "TEACHER"),
+  requireSessionRole("ADMIN", "TEACHER", "STUDENT"),
   validateRequest(AuthValidation.leaveInstitutionSchema),
   AuthController.leaveInstitution
 );
