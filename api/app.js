@@ -9014,6 +9014,182 @@ var createStudentAdmissionPost = async (userId, payload) => {
     }
   });
 };
+var toPostingUpdateData = (payload) => ({
+  title: payload.title?.trim(),
+  location: payload.location?.trim() || void 0,
+  summary: payload.summary?.trim(),
+  details: payload.details?.map((item) => item.trim()).filter(Boolean)
+});
+var listTeacherJobPostsManaged = async (userId, search) => {
+  const context = await resolveAdminContext(userId);
+  const normalizedSearch = normalizeSearch5(search);
+  const posts = await prisma.teacherJobPost.findMany({
+    where: {
+      institutionId: context.institutionId,
+      ...normalizedSearch ? {
+        OR: [
+          { title: { contains: normalizedSearch, mode: "insensitive" } },
+          { summary: { contains: normalizedSearch, mode: "insensitive" } },
+          { location: { contains: normalizedSearch, mode: "insensitive" } }
+        ]
+      } : {}
+    },
+    orderBy: {
+      createdAt: "desc"
+    }
+  });
+  const maps = await buildLookupMaps(posts);
+  return posts.map((post) => {
+    const institution = maps.institutionMap.get(post.institutionId);
+    const faculty = post.facultyId ? maps.facultyMap.get(post.facultyId) : null;
+    const department = post.departmentId ? maps.departmentMap.get(post.departmentId) : null;
+    const program = post.programId ? maps.programMap.get(post.programId) : null;
+    return {
+      id: post.id,
+      title: post.title,
+      summary: post.summary,
+      details: post.details,
+      location: post.location,
+      createdAt: post.createdAt,
+      updatedAt: post.updatedAt,
+      institution: institution?.name ?? "Unknown institution",
+      institutionShortName: institution?.shortName ?? null,
+      institutionLogo: institution?.institutionLogo ?? null,
+      facultyName: faculty?.fullName ?? null,
+      departmentName: department?.fullName ?? null,
+      programTitle: program?.title ?? null
+    };
+  });
+};
+var listStudentAdmissionPostsManaged = async (userId, search) => {
+  const context = await resolveAdminContext(userId);
+  const normalizedSearch = normalizeSearch5(search);
+  const posts = await prisma.studentAdmissionPost.findMany({
+    where: {
+      institutionId: context.institutionId,
+      ...normalizedSearch ? {
+        OR: [
+          { title: { contains: normalizedSearch, mode: "insensitive" } },
+          { summary: { contains: normalizedSearch, mode: "insensitive" } },
+          { location: { contains: normalizedSearch, mode: "insensitive" } }
+        ]
+      } : {}
+    },
+    orderBy: {
+      createdAt: "desc"
+    }
+  });
+  const maps = await buildLookupMaps(posts);
+  return posts.map((post) => {
+    const institution = maps.institutionMap.get(post.institutionId);
+    const faculty = post.facultyId ? maps.facultyMap.get(post.facultyId) : null;
+    const department = post.departmentId ? maps.departmentMap.get(post.departmentId) : null;
+    const program = post.programId ? maps.programMap.get(post.programId) : null;
+    return {
+      id: post.id,
+      title: post.title,
+      summary: post.summary,
+      details: post.details,
+      location: post.location,
+      createdAt: post.createdAt,
+      updatedAt: post.updatedAt,
+      institution: institution?.name ?? "Unknown institution",
+      institutionShortName: institution?.shortName ?? null,
+      institutionLogo: institution?.institutionLogo ?? null,
+      facultyName: faculty?.fullName ?? null,
+      departmentName: department?.fullName ?? null,
+      programTitle: program?.title ?? null
+    };
+  });
+};
+var updateTeacherJobPost = async (userId, postingId, payload) => {
+  const context = await resolveAdminContext(userId);
+  const existing = await prisma.teacherJobPost.findUnique({
+    where: {
+      id: postingId
+    },
+    select: {
+      id: true,
+      institutionId: true
+    }
+  });
+  if (!existing || existing.institutionId !== context.institutionId) {
+    throw createHttpError9(404, "Teacher job post not found");
+  }
+  return prisma.teacherJobPost.update({
+    where: {
+      id: postingId
+    },
+    data: toPostingUpdateData(payload)
+  });
+};
+var updateStudentAdmissionPost = async (userId, postingId, payload) => {
+  const context = await resolveAdminContext(userId);
+  const existing = await prisma.studentAdmissionPost.findUnique({
+    where: {
+      id: postingId
+    },
+    select: {
+      id: true,
+      institutionId: true
+    }
+  });
+  if (!existing || existing.institutionId !== context.institutionId) {
+    throw createHttpError9(404, "Student admission post not found");
+  }
+  return prisma.studentAdmissionPost.update({
+    where: {
+      id: postingId
+    },
+    data: toPostingUpdateData(payload)
+  });
+};
+var deleteTeacherJobPost = async (userId, postingId) => {
+  const context = await resolveAdminContext(userId);
+  const existing = await prisma.teacherJobPost.findUnique({
+    where: {
+      id: postingId
+    },
+    select: {
+      id: true,
+      institutionId: true
+    }
+  });
+  if (!existing || existing.institutionId !== context.institutionId) {
+    throw createHttpError9(404, "Teacher job post not found");
+  }
+  await prisma.teacherJobPost.delete({
+    where: {
+      id: postingId
+    }
+  });
+  return {
+    id: postingId
+  };
+};
+var deleteStudentAdmissionPost = async (userId, postingId) => {
+  const context = await resolveAdminContext(userId);
+  const existing = await prisma.studentAdmissionPost.findUnique({
+    where: {
+      id: postingId
+    },
+    select: {
+      id: true,
+      institutionId: true
+    }
+  });
+  if (!existing || existing.institutionId !== context.institutionId) {
+    throw createHttpError9(404, "Student admission post not found");
+  }
+  await prisma.studentAdmissionPost.delete({
+    where: {
+      id: postingId
+    }
+  });
+  return {
+    id: postingId
+  };
+};
 async function buildLookupMaps(posts) {
   const institutionIds = Array.from(new Set(posts.map((item) => item.institutionId)));
   const facultyIds = Array.from(
@@ -9236,7 +9412,13 @@ var PostingService = {
   createStudentAdmissionPost,
   listTeacherJobPostsPublic,
   listStudentAdmissionPostsPublic,
-  getPostingOptions
+  getPostingOptions,
+  listTeacherJobPostsManaged,
+  listStudentAdmissionPostsManaged,
+  updateTeacherJobPost,
+  updateStudentAdmissionPost,
+  deleteTeacherJobPost,
+  deleteStudentAdmissionPost
 };
 
 // src/app/module/posting/posting.controller.ts
@@ -9257,6 +9439,7 @@ var readQueryValue5 = (value) => {
   }
   return typeof value === "string" ? value : void 0;
 };
+var readParam5 = (value) => Array.isArray(value) ? value[0] : value ?? "";
 var createTeacherJobPost2 = catchAsync(async (req, res) => {
   const user = res.locals.authUser;
   const result = await PostingService.createTeacherJobPost(user.id, req.body);
@@ -9307,12 +9490,78 @@ var getPostingOptions2 = catchAsync(async (req, res) => {
     data: result
   });
 });
+var listTeacherJobPostsManaged2 = catchAsync(async (req, res) => {
+  const user = res.locals.authUser;
+  const result = await PostingService.listTeacherJobPostsManaged(user.id, readQueryValue5(req.query.search));
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Managed teacher job posts fetched successfully",
+    data: result
+  });
+});
+var listStudentAdmissionPostsManaged2 = catchAsync(async (req, res) => {
+  const user = res.locals.authUser;
+  const result = await PostingService.listStudentAdmissionPostsManaged(user.id, readQueryValue5(req.query.search));
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Managed student admission posts fetched successfully",
+    data: result
+  });
+});
+var updateTeacherJobPost2 = catchAsync(async (req, res) => {
+  const user = res.locals.authUser;
+  const result = await PostingService.updateTeacherJobPost(user.id, readParam5(req.params.postingId), req.body);
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Teacher job post updated successfully",
+    data: result
+  });
+});
+var updateStudentAdmissionPost2 = catchAsync(async (req, res) => {
+  const user = res.locals.authUser;
+  const result = await PostingService.updateStudentAdmissionPost(user.id, readParam5(req.params.postingId), req.body);
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Student admission post updated successfully",
+    data: result
+  });
+});
+var deleteTeacherJobPost2 = catchAsync(async (req, res) => {
+  const user = res.locals.authUser;
+  const result = await PostingService.deleteTeacherJobPost(user.id, readParam5(req.params.postingId));
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Teacher job post deleted successfully",
+    data: result
+  });
+});
+var deleteStudentAdmissionPost2 = catchAsync(async (req, res) => {
+  const user = res.locals.authUser;
+  const result = await PostingService.deleteStudentAdmissionPost(user.id, readParam5(req.params.postingId));
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Student admission post deleted successfully",
+    data: result
+  });
+});
 var PostingController = {
   createTeacherJobPost: createTeacherJobPost2,
   createStudentAdmissionPost: createStudentAdmissionPost2,
   listTeacherJobPostsPublic: listTeacherJobPostsPublic2,
   listStudentAdmissionPostsPublic: listStudentAdmissionPostsPublic2,
-  getPostingOptions: getPostingOptions2
+  getPostingOptions: getPostingOptions2,
+  listTeacherJobPostsManaged: listTeacherJobPostsManaged2,
+  listStudentAdmissionPostsManaged: listStudentAdmissionPostsManaged2,
+  updateTeacherJobPost: updateTeacherJobPost2,
+  updateStudentAdmissionPost: updateStudentAdmissionPost2,
+  deleteTeacherJobPost: deleteTeacherJobPost2,
+  deleteStudentAdmissionPost: deleteStudentAdmissionPost2
 };
 
 // src/app/module/posting/posting.validation.ts
@@ -9328,6 +9577,29 @@ var createPostingSchema = z10.object({
     departmentId: uuidSchema4.optional()
   })
 });
+var updatePostingSchema = z10.object({
+  params: z10.object({
+    postingId: uuidSchema4
+  }),
+  body: z10.object({
+    title: z10.string("Title must be a string").trim().min(2).max(150).optional(),
+    location: z10.string("Location must be a string").trim().min(2).max(150).optional(),
+    summary: z10.string("Summary must be a string").trim().min(10).max(600).optional(),
+    details: z10.array(z10.string("Detail must be a string").trim().min(2).max(300)).max(20).optional()
+  }).refine((value) => Object.keys(value).length > 0, {
+    message: "At least one field is required"
+  })
+});
+var postingIdParamSchema = z10.object({
+  params: z10.object({
+    postingId: uuidSchema4
+  })
+});
+var listManagedPostingSchema = z10.object({
+  query: z10.object({
+    search: z10.string("search must be a string").trim().max(120).optional()
+  })
+});
 var listPublicPostingSchema = z10.object({
   query: z10.object({
     limit: z10.string("limit must be a number").regex(/^\d+$/, "limit must be a positive integer").optional()
@@ -9335,7 +9607,10 @@ var listPublicPostingSchema = z10.object({
 });
 var PostingValidation = {
   createPostingSchema,
-  listPublicPostingSchema
+  updatePostingSchema,
+  postingIdParamSchema,
+  listPublicPostingSchema,
+  listManagedPostingSchema
 };
 
 // src/app/module/posting/posting.route.ts
@@ -9355,6 +9630,18 @@ router9.get(
   requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT"),
   PostingController.getPostingOptions
 );
+router9.get(
+  "/teacher/manage",
+  requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT"),
+  validateRequest(PostingValidation.listManagedPostingSchema),
+  PostingController.listTeacherJobPostsManaged
+);
+router9.get(
+  "/student/manage",
+  requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT"),
+  validateRequest(PostingValidation.listManagedPostingSchema),
+  PostingController.listStudentAdmissionPostsManaged
+);
 router9.post(
   "/teacher",
   requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT"),
@@ -9366,6 +9653,30 @@ router9.post(
   requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT"),
   validateRequest(PostingValidation.createPostingSchema),
   PostingController.createStudentAdmissionPost
+);
+router9.patch(
+  "/teacher/:postingId",
+  requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT"),
+  validateRequest(PostingValidation.updatePostingSchema),
+  PostingController.updateTeacherJobPost
+);
+router9.patch(
+  "/student/:postingId",
+  requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT"),
+  validateRequest(PostingValidation.updatePostingSchema),
+  PostingController.updateStudentAdmissionPost
+);
+router9.delete(
+  "/teacher/:postingId",
+  requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT"),
+  validateRequest(PostingValidation.postingIdParamSchema),
+  PostingController.deleteTeacherJobPost
+);
+router9.delete(
+  "/student/:postingId",
+  requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT"),
+  validateRequest(PostingValidation.postingIdParamSchema),
+  PostingController.deleteStudentAdmissionPost
 );
 var PostingRouter = router9;
 
@@ -11123,7 +11434,7 @@ var StudentService = {
 };
 
 // src/app/module/student/student.controller.ts
-var readParam5 = (value) => Array.isArray(value) ? value[0] : value ?? "";
+var readParam6 = (value) => Array.isArray(value) ? value[0] : value ?? "";
 var readQueryValue6 = (value) => {
   if (Array.isArray(value)) {
     return typeof value[0] === "string" ? value[0] : void 0;
@@ -11184,7 +11495,7 @@ var applyToAdmissionPosting2 = catchAsync(async (req, res) => {
   const user = res.locals.authUser;
   const result = await StudentService.applyToAdmissionPosting(
     user.id,
-    readParam5(req.params.postingId),
+    readParam6(req.params.postingId),
     req.body
   );
   sendResponse(res, {
@@ -11296,7 +11607,7 @@ var createSubmission2 = catchAsync(async (req, res) => {
 });
 var updateSubmission2 = catchAsync(async (req, res) => {
   const user = res.locals.authUser;
-  const result = await StudentService.updateSubmission(user.id, readParam5(req.params.submissionId), req.body);
+  const result = await StudentService.updateSubmission(user.id, readParam6(req.params.submissionId), req.body);
   sendResponse(res, {
     httpStatusCode: 200,
     success: true,
@@ -11306,7 +11617,7 @@ var updateSubmission2 = catchAsync(async (req, res) => {
 });
 var deleteSubmission2 = catchAsync(async (req, res) => {
   const user = res.locals.authUser;
-  const result = await StudentService.deleteSubmission(user.id, readParam5(req.params.submissionId));
+  const result = await StudentService.deleteSubmission(user.id, readParam6(req.params.submissionId));
   sendResponse(res, {
     httpStatusCode: 200,
     success: true,
@@ -12903,7 +13214,7 @@ var TeacherService = {
 };
 
 // src/app/module/teacher/teacher.controller.ts
-var readParam6 = (value) => Array.isArray(value) ? value[0] : value ?? "";
+var readParam7 = (value) => Array.isArray(value) ? value[0] : value ?? "";
 var readQueryValue7 = (value) => {
   if (Array.isArray(value)) {
     return typeof value[0] === "string" ? value[0] : void 0;
@@ -12974,7 +13285,7 @@ var applyToTeacherJobPosting2 = catchAsync(async (req, res) => {
   const user = res.locals.authUser;
   const result = await TeacherService.applyToTeacherJobPosting(
     user.id,
-    readParam6(req.params.postingId),
+    readParam7(req.params.postingId),
     req.body
   );
   sendResponse(res, {
@@ -13048,7 +13359,7 @@ var updateClasswork2 = catchAsync(async (req, res) => {
   const user = res.locals.authUser;
   const result = await TeacherService.updateClasswork(
     user.id,
-    readParam6(req.params.classworkId),
+    readParam7(req.params.classworkId),
     req.body
   );
   sendResponse(res, {
@@ -13060,7 +13371,7 @@ var updateClasswork2 = catchAsync(async (req, res) => {
 });
 var deleteClasswork2 = catchAsync(async (req, res) => {
   const user = res.locals.authUser;
-  const result = await TeacherService.deleteClasswork(user.id, readParam6(req.params.classworkId));
+  const result = await TeacherService.deleteClasswork(user.id, readParam7(req.params.classworkId));
   sendResponse(res, {
     httpStatusCode: 200,
     success: true,
@@ -13105,7 +13416,7 @@ var upsertSectionMark2 = catchAsync(async (req, res) => {
   const user = res.locals.authUser;
   const result = await TeacherService.upsertSectionMark(
     user.id,
-    readParam6(req.params.courseRegistrationId),
+    readParam7(req.params.courseRegistrationId),
     req.body
   );
   sendResponse(res, {
@@ -13130,7 +13441,7 @@ var reviewTeacherApplication2 = catchAsync(async (req, res) => {
   const user = res.locals.authUser;
   const result = await TeacherService.reviewTeacherApplication(
     user.id,
-    readParam6(req.params.applicationId),
+    readParam7(req.params.applicationId),
     req.body
   );
   sendResponse(res, {

@@ -7,6 +7,13 @@ export interface ICreatePostingPayload {
   departmentId?: string;
 }
 
+export interface IUpdatePostingPayload {
+  title?: string;
+  location?: string;
+  summary?: string;
+  details?: string[];
+}
+
 export interface IPostingOptionItem {
   id: string;
   fullName: string;

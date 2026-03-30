@@ -1,6 +1,6 @@
 import { AdminRole } from "../../../generated/prisma/enums";
 import { prisma } from "../../lib/prisma";
-import { ICreatePostingPayload } from "./posting.interface";
+import { ICreatePostingPayload, IUpdatePostingPayload } from "./posting.interface";
 
 function createHttpError(statusCode: number, message: string) {
   const error = new Error(message) as Error & { statusCode?: number };
@@ -202,6 +202,215 @@ const createStudentAdmissionPost = async (userId: string, payload: ICreatePostin
       createdByUserId: userId,
     },
   });
+};
+
+const toPostingUpdateData = (payload: IUpdatePostingPayload) => ({
+  title: payload.title?.trim(),
+  location: payload.location?.trim() || undefined,
+  summary: payload.summary?.trim(),
+  details: payload.details?.map((item) => item.trim()).filter(Boolean),
+});
+
+const listTeacherJobPostsManaged = async (userId: string, search?: string) => {
+  const context = await resolveAdminContext(userId);
+  const normalizedSearch = normalizeSearch(search);
+
+  const posts = await prisma.teacherJobPost.findMany({
+    where: {
+      institutionId: context.institutionId,
+      ...(normalizedSearch
+        ? {
+            OR: [
+              { title: { contains: normalizedSearch, mode: "insensitive" } },
+              { summary: { contains: normalizedSearch, mode: "insensitive" } },
+              { location: { contains: normalizedSearch, mode: "insensitive" } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  const maps = await buildLookupMaps(posts);
+
+  return posts.map((post) => {
+    const institution = maps.institutionMap.get(post.institutionId);
+    const faculty = post.facultyId ? maps.facultyMap.get(post.facultyId) : null;
+    const department = post.departmentId ? maps.departmentMap.get(post.departmentId) : null;
+    const program = post.programId ? maps.programMap.get(post.programId) : null;
+
+    return {
+      id: post.id,
+      title: post.title,
+      summary: post.summary,
+      details: post.details,
+      location: post.location,
+      createdAt: post.createdAt,
+      updatedAt: post.updatedAt,
+      institution: institution?.name ?? "Unknown institution",
+      institutionShortName: institution?.shortName ?? null,
+      institutionLogo: institution?.institutionLogo ?? null,
+      facultyName: faculty?.fullName ?? null,
+      departmentName: department?.fullName ?? null,
+      programTitle: program?.title ?? null,
+    };
+  });
+};
+
+const listStudentAdmissionPostsManaged = async (userId: string, search?: string) => {
+  const context = await resolveAdminContext(userId);
+  const normalizedSearch = normalizeSearch(search);
+
+  const posts = await prisma.studentAdmissionPost.findMany({
+    where: {
+      institutionId: context.institutionId,
+      ...(normalizedSearch
+        ? {
+            OR: [
+              { title: { contains: normalizedSearch, mode: "insensitive" } },
+              { summary: { contains: normalizedSearch, mode: "insensitive" } },
+              { location: { contains: normalizedSearch, mode: "insensitive" } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  const maps = await buildLookupMaps(posts);
+
+  return posts.map((post) => {
+    const institution = maps.institutionMap.get(post.institutionId);
+    const faculty = post.facultyId ? maps.facultyMap.get(post.facultyId) : null;
+    const department = post.departmentId ? maps.departmentMap.get(post.departmentId) : null;
+    const program = post.programId ? maps.programMap.get(post.programId) : null;
+
+    return {
+      id: post.id,
+      title: post.title,
+      summary: post.summary,
+      details: post.details,
+      location: post.location,
+      createdAt: post.createdAt,
+      updatedAt: post.updatedAt,
+      institution: institution?.name ?? "Unknown institution",
+      institutionShortName: institution?.shortName ?? null,
+      institutionLogo: institution?.institutionLogo ?? null,
+      facultyName: faculty?.fullName ?? null,
+      departmentName: department?.fullName ?? null,
+      programTitle: program?.title ?? null,
+    };
+  });
+};
+
+const updateTeacherJobPost = async (userId: string, postingId: string, payload: IUpdatePostingPayload) => {
+  const context = await resolveAdminContext(userId);
+
+  const existing = await prisma.teacherJobPost.findUnique({
+    where: {
+      id: postingId,
+    },
+    select: {
+      id: true,
+      institutionId: true,
+    },
+  });
+
+  if (existing?.institutionId !== context.institutionId) {
+    throw createHttpError(404, "Teacher job post not found");
+  }
+
+  return prisma.teacherJobPost.update({
+    where: {
+      id: postingId,
+    },
+    data: toPostingUpdateData(payload),
+  });
+};
+
+const updateStudentAdmissionPost = async (userId: string, postingId: string, payload: IUpdatePostingPayload) => {
+  const context = await resolveAdminContext(userId);
+
+  const existing = await prisma.studentAdmissionPost.findUnique({
+    where: {
+      id: postingId,
+    },
+    select: {
+      id: true,
+      institutionId: true,
+    },
+  });
+
+  if (existing?.institutionId !== context.institutionId) {
+    throw createHttpError(404, "Student admission post not found");
+  }
+
+  return prisma.studentAdmissionPost.update({
+    where: {
+      id: postingId,
+    },
+    data: toPostingUpdateData(payload),
+  });
+};
+
+const deleteTeacherJobPost = async (userId: string, postingId: string) => {
+  const context = await resolveAdminContext(userId);
+
+  const existing = await prisma.teacherJobPost.findUnique({
+    where: {
+      id: postingId,
+    },
+    select: {
+      id: true,
+      institutionId: true,
+    },
+  });
+
+  if (existing?.institutionId !== context.institutionId) {
+    throw createHttpError(404, "Teacher job post not found");
+  }
+
+  await prisma.teacherJobPost.delete({
+    where: {
+      id: postingId,
+    },
+  });
+
+  return {
+    id: postingId,
+  };
+};
+
+const deleteStudentAdmissionPost = async (userId: string, postingId: string) => {
+  const context = await resolveAdminContext(userId);
+
+  const existing = await prisma.studentAdmissionPost.findUnique({
+    where: {
+      id: postingId,
+    },
+    select: {
+      id: true,
+      institutionId: true,
+    },
+  });
+
+  if (existing?.institutionId !== context.institutionId) {
+    throw createHttpError(404, "Student admission post not found");
+  }
+
+  await prisma.studentAdmissionPost.delete({
+    where: {
+      id: postingId,
+    },
+  });
+
+  return {
+    id: postingId,
+  };
 };
 
 async function buildLookupMaps(posts: Array<{
@@ -468,4 +677,10 @@ export const PostingService = {
   listTeacherJobPostsPublic,
   listStudentAdmissionPostsPublic,
   getPostingOptions,
+  listTeacherJobPostsManaged,
+  listStudentAdmissionPostsManaged,
+  updateTeacherJobPost,
+  updateStudentAdmissionPost,
+  deleteTeacherJobPost,
+  deleteStudentAdmissionPost,
 };

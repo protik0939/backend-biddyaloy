@@ -24,6 +24,20 @@ router.get(
   PostingController.getPostingOptions,
 );
 
+router.get(
+  "/teacher/manage",
+  requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT"),
+  validateRequest(PostingValidation.listManagedPostingSchema),
+  PostingController.listTeacherJobPostsManaged,
+);
+
+router.get(
+  "/student/manage",
+  requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT"),
+  validateRequest(PostingValidation.listManagedPostingSchema),
+  PostingController.listStudentAdmissionPostsManaged,
+);
+
 router.post(
   "/teacher",
   requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT"),
@@ -36,6 +50,34 @@ router.post(
   requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT"),
   validateRequest(PostingValidation.createPostingSchema),
   PostingController.createStudentAdmissionPost,
+);
+
+router.patch(
+  "/teacher/:postingId",
+  requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT"),
+  validateRequest(PostingValidation.updatePostingSchema),
+  PostingController.updateTeacherJobPost,
+);
+
+router.patch(
+  "/student/:postingId",
+  requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT"),
+  validateRequest(PostingValidation.updatePostingSchema),
+  PostingController.updateStudentAdmissionPost,
+);
+
+router.delete(
+  "/teacher/:postingId",
+  requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT"),
+  validateRequest(PostingValidation.postingIdParamSchema),
+  PostingController.deleteTeacherJobPost,
+);
+
+router.delete(
+  "/student/:postingId",
+  requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT"),
+  validateRequest(PostingValidation.postingIdParamSchema),
+  PostingController.deleteStudentAdmissionPost,
 );
 
 export const PostingRouter = router;
