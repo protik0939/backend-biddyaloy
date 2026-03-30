@@ -25,7 +25,7 @@ async function resolveInstitutionIdForUser(user: SessionUser): Promise<string | 
   }
 
   if (user.role === "TEACHER") {
-    const teacherProfile = await prisma.teacherProfile.findUnique({
+    const teacherProfile = await prisma.teacherProfile.findFirst({
       where: {
         userId: user.id,
       },
@@ -38,7 +38,7 @@ async function resolveInstitutionIdForUser(user: SessionUser): Promise<string | 
   }
 
   if (user.role === "STUDENT") {
-    const studentProfile = await prisma.studentProfile.findUnique({
+    const studentProfile = await prisma.studentProfile.findFirst({
       where: {
         userId: user.id,
       },
