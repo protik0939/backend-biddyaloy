@@ -75,7 +75,15 @@ function canBypassSubscriptionExpiry(user: SessionUser, req: Request) {
     return false;
   }
 
-  return req.path === "/api/v1/institution-admin/subscription/renew/initiate";
+  const normalizedOriginalUrl = req.originalUrl?.split("?")[0] ?? "";
+  const normalizedPath = req.path ?? "";
+  const normalizedRoutePath = `${req.baseUrl ?? ""}${req.path ?? ""}`;
+
+  return (
+    normalizedOriginalUrl === "/api/v1/institution-admin/subscription/renew/initiate" ||
+    normalizedPath === "/subscription/renew/initiate" ||
+    normalizedRoutePath === "/api/v1/institution-admin/subscription/renew/initiate"
+  );
 }
 
 const SESSION_COOKIE_KEYS = [

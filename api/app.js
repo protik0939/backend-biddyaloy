@@ -263,7 +263,10 @@ function canBypassSubscriptionExpiry(user, req) {
   if (user.role !== "ADMIN") {
     return false;
   }
-  return req.path === "/api/v1/institution-admin/subscription/renew/initiate";
+  const normalizedOriginalUrl = req.originalUrl?.split("?")[0] ?? "";
+  const normalizedPath = req.path ?? "";
+  const normalizedRoutePath = `${req.baseUrl ?? ""}${req.path ?? ""}`;
+  return normalizedOriginalUrl === "/api/v1/institution-admin/subscription/renew/initiate" || normalizedPath === "/subscription/renew/initiate" || normalizedRoutePath === "/api/v1/institution-admin/subscription/renew/initiate";
 }
 var SESSION_COOKIE_KEYS = [
   "__Secure-better-auth.session_token",
