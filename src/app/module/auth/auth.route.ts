@@ -43,9 +43,21 @@ router.post(
 );
 router.post(
 	"/leave-institution",
-	requireSessionRole("ADMIN", "TEACHER", "STUDENT"),
+	requireSessionRole("TEACHER", "STUDENT"),
 	validateRequest(AuthValidation.leaveInstitutionSchema),
 	AuthController.leaveInstitution,
+);
+router.get(
+	"/leave-institution/superadmin",
+	requireSessionRole("SUPERADMIN"),
+	validateRequest(AuthValidation.listInstitutionLeaveRequestsSchema),
+	AuthController.listInstitutionLeaveRequests,
+);
+router.patch(
+	"/leave-institution/superadmin/:requestId/review",
+	requireSessionRole("SUPERADMIN"),
+	validateRequest(AuthValidation.reviewInstitutionLeaveRequestSchema),
+	AuthController.reviewInstitutionLeaveRequest,
 );
 router.get(
 	"/access-status",

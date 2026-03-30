@@ -46,6 +46,18 @@ router.get(
   "/subscription/renew/payment/cancel",
   InstitutionAdminController.handleRenewalPaymentCancel,
 );
+router.post(
+  "/subscription/renew/payment/success",
+  InstitutionAdminController.handleRenewalPaymentSuccess,
+);
+router.post(
+  "/subscription/renew/payment/fail",
+  InstitutionAdminController.handleRenewalPaymentFail,
+);
+router.post(
+  "/subscription/renew/payment/cancel",
+  InstitutionAdminController.handleRenewalPaymentCancel,
+);
 router.get("/faculties", requireAdminRole(), InstitutionAdminController.listFaculties);
 router.get("/semesters", requireAdminRole(), InstitutionAdminController.listSemesters);
 router.post(

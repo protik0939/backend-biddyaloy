@@ -41,6 +41,14 @@ interface IRequestInstitutionLeavePayload {
   reason?: string;
 }
 
+interface IListInstitutionLeaveRequestsQuery {
+  status?: "PENDING" | "APPROVED" | "REJECTED";
+}
+
+interface IReviewInstitutionLeaveRequestPayload {
+  status: "APPROVED" | "REJECTED";
+}
+
 export {
   IRegisterUser,
   ILoginUser,
@@ -50,4 +58,6 @@ export {
   IResetPasswordPayload,
   IChangePasswordPayload,
   IRequestInstitutionLeavePayload,
+  IListInstitutionLeaveRequestsQuery,
+  IReviewInstitutionLeaveRequestPayload,
 };

@@ -5,7 +5,9 @@ import {
   IAuthOtpEmailPayload,
   IChangePasswordPayload,
   IForgotPasswordPayload,
+  IListInstitutionLeaveRequestsQuery,
   ILoginUser,
+  IReviewInstitutionLeaveRequestPayload,
   IRequestInstitutionLeavePayload,
   IRegisterUser,
   IResetPasswordPayload,
@@ -445,24 +447,11 @@ const requestInstitutionLeave = async (
   userRole: string,
   payload: IRequestInstitutionLeavePayload,
 ) => {
-  if (userRole !== "ADMIN" && userRole !== "TEACHER" && userRole !== "STUDENT") {
-    throw createHttpError(403, "Only admin, teacher, or student can request institution leave");
+  if (userRole !== "TEACHER" && userRole !== "STUDENT") {
+    throw createHttpError(403, "Only teacher or student can request institution leave");
   }
 
   let context: { institutionId: string } | null = null;
-
-  if (userRole === "ADMIN") {
-    const adminProfile = await prisma.adminProfile.findUnique({
-      where: {
-        userId,
-      },
-      select: {
-        institutionId: true,
-      },
-    });
-
-    context = adminProfile?.institutionId ? { institutionId: adminProfile.institutionId } : null;
-  }
 
   if (userRole === "TEACHER") {
     const teacherProfile = await prisma.teacherProfile.findFirst({
@@ -546,6 +535,106 @@ const requestInstitutionLeave = async (
   });
 };
 
+const listInstitutionLeaveRequestsForSuperAdmin = async (
+  query: IListInstitutionLeaveRequestsQuery,
+) => {
+  const status = query.status?.trim().toUpperCase();
+  const where =
+    status && (status === "PENDING" || status === "APPROVED" || status === "REJECTED")
+      ? { status }
+      : undefined;
+
+  return (prisma as any).institutionLeaveRequest.findMany({
+    where,
+    include: {
+      requesterUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+      institution: {
+        select: {
+          id: true,
+          name: true,
+          shortName: true,
+          type: true,
+        },
+      },
+      reviewedByUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+};
+
+const reviewInstitutionLeaveRequestBySuperAdmin = async (
+  reviewerUserId: string,
+  requestId: string,
+  payload: IReviewInstitutionLeaveRequestPayload,
+) => {
+  const leaveRequest = await (prisma as any).institutionLeaveRequest.findUnique({
+    where: {
+      id: requestId,
+    },
+    select: {
+      id: true,
+      status: true,
+    },
+  });
+
+  if (!leaveRequest) {
+    throw createHttpError(404, "Institution leave request not found");
+  }
+
+  if (leaveRequest.status !== "PENDING") {
+    throw createHttpError(400, "Only pending leave requests can be reviewed");
+  }
+
+  return (prisma as any).institutionLeaveRequest.update({
+    where: {
+      id: requestId,
+    },
+    data: {
+      status: payload.status,
+      reviewedByUserId: reviewerUserId,
+      reviewedAt: new Date(),
+    },
+    include: {
+      requesterUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+      institution: {
+        select: {
+          id: true,
+          name: true,
+          shortName: true,
+          type: true,
+        },
+      },
+      reviewedByUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+    },
+  });
+};
+
 export const AuthService = {
   registerUser,
   loginUser,
@@ -557,4 +646,6 @@ export const AuthService = {
   resetPassword,
   changePassword,
   requestInstitutionLeave,
+  listInstitutionLeaveRequestsForSuperAdmin,
+  reviewInstitutionLeaveRequestBySuperAdmin,
 };

@@ -14,6 +14,13 @@ const readQueryValue = (value: unknown) => {
   return typeof value === "string" ? value : undefined;
 };
 
+function getCallbackPayload(req: Request) {
+  return {
+    ...(req.query as Record<string, unknown>),
+    ...(req.body as Record<string, unknown>),
+  };
+}
+
 const createSubAdminAccount = catchAsync(async (req: Request, res: Response) => {
   const user = res.locals.authUser as { id: string };
   const result = await InstitutionAdminService.createSubAdminAccount(user.id, req.body);
@@ -104,7 +111,7 @@ const initiateSubscriptionRenewal = catchAsync(async (req: Request, res: Respons
 const handleRenewalPaymentSuccess = catchAsync(async (req: Request, res: Response) => {
   const result = await InstitutionAdminService.handleSubscriptionRenewalPaymentCallback(
     "success",
-    req.query as Record<string, unknown>,
+    getCallbackPayload(req),
   );
 
   res.redirect(result.redirectUrl);
@@ -113,7 +120,7 @@ const handleRenewalPaymentSuccess = catchAsync(async (req: Request, res: Respons
 const handleRenewalPaymentFail = catchAsync(async (req: Request, res: Response) => {
   const result = await InstitutionAdminService.handleSubscriptionRenewalPaymentCallback(
     "failed",
-    req.query as Record<string, unknown>,
+    getCallbackPayload(req),
   );
 
   res.redirect(result.redirectUrl);
@@ -122,7 +129,7 @@ const handleRenewalPaymentFail = catchAsync(async (req: Request, res: Response) 
 const handleRenewalPaymentCancel = catchAsync(async (req: Request, res: Response) => {
   const result = await InstitutionAdminService.handleSubscriptionRenewalPaymentCallback(
     "cancelled",
-    req.query as Record<string, unknown>,
+    getCallbackPayload(req),
   );
 
   res.redirect(result.redirectUrl);

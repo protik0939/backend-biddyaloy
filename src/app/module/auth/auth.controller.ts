@@ -140,6 +140,36 @@ const leaveInstitution = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const listInstitutionLeaveRequests = catchAsync(async (req: Request, res: Response) => {
+  const result = await AuthService.listInstitutionLeaveRequestsForSuperAdmin(req.query as any);
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Institution leave requests fetched successfully",
+    data: result,
+  });
+});
+
+const reviewInstitutionLeaveRequest = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const requestIdParam = req.params.requestId;
+  const requestId = Array.isArray(requestIdParam) ? requestIdParam[0] : requestIdParam;
+
+  const result = await AuthService.reviewInstitutionLeaveRequestBySuperAdmin(
+    user.id,
+    requestId,
+    req.body,
+  );
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Institution leave request reviewed successfully",
+    data: result,
+  });
+});
+
 export const AuthController = {
   registerUser,
   loginUser,
@@ -152,4 +182,6 @@ export const AuthController = {
   resetPassword,
   changePassword,
   leaveInstitution,
+  listInstitutionLeaveRequests,
+  reviewInstitutionLeaveRequest,
 };

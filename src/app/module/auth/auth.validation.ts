@@ -134,6 +134,21 @@ const leaveInstitutionSchema = z.object({
   }),
 });
 
+const listInstitutionLeaveRequestsSchema = z.object({
+  query: z.object({
+    status: z.enum(["PENDING", "APPROVED", "REJECTED"]).optional(),
+  }),
+});
+
+const reviewInstitutionLeaveRequestSchema = z.object({
+  params: z.object({
+    requestId: z.uuid("Please provide a valid leave request id"),
+  }),
+  body: z.object({
+    status: z.enum(["APPROVED", "REJECTED"]),
+  }),
+});
+
 export const AuthValidation = {
   registerSchema,
   loginSchema,
@@ -143,6 +158,8 @@ export const AuthValidation = {
   forgotPasswordSchema,
   resetPasswordSchema,
   leaveInstitutionSchema,
+  listInstitutionLeaveRequestsSchema,
+  reviewInstitutionLeaveRequestSchema,
   verifyEmailSchema,
   refreshTokenSchema,
 };

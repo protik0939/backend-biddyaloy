@@ -260,13 +260,19 @@ async function hasActiveInstitutionSubscription(institutionId) {
   return Boolean(activeSubscription?.id);
 }
 function canBypassSubscriptionExpiry(user, req) {
-  if (user.role !== "ADMIN") {
-    return false;
-  }
   const normalizedOriginalUrl = req.originalUrl?.split("?")[0] ?? "";
   const normalizedPath = req.path ?? "";
   const normalizedRoutePath = `${req.baseUrl ?? ""}${req.path ?? ""}`;
-  return normalizedOriginalUrl === "/api/v1/institution-admin/subscription/renew/initiate" || normalizedPath === "/subscription/renew/initiate" || normalizedRoutePath === "/api/v1/institution-admin/subscription/renew/initiate";
+  const isRenewInitiateRoute = normalizedOriginalUrl === "/api/v1/institution-admin/subscription/renew/initiate" || normalizedPath === "/subscription/renew/initiate" || normalizedRoutePath === "/api/v1/institution-admin/subscription/renew/initiate";
+  if (user.role === "ADMIN" && isRenewInitiateRoute) {
+    return true;
+  }
+  const canRequestLeave = user.role === "TEACHER" || user.role === "STUDENT";
+  const isLeaveRoute = normalizedOriginalUrl === "/api/v1/auth/leave-institution" || normalizedPath === "/leave-institution" || normalizedRoutePath === "/api/v1/auth/leave-institution";
+  if (canRequestLeave && isLeaveRoute) {
+    return true;
+  }
+  return false;
 }
 var SESSION_COOKIE_KEYS = [
   "__Secure-better-auth.session_token",
@@ -6597,21 +6603,10 @@ function createHttpError4(statusCode, message) {
   return error;
 }
 var requestInstitutionLeave = async (userId, userRole, payload) => {
-  if (userRole !== "ADMIN" && userRole !== "TEACHER" && userRole !== "STUDENT") {
-    throw createHttpError4(403, "Only admin, teacher, or student can request institution leave");
+  if (userRole !== "TEACHER" && userRole !== "STUDENT") {
+    throw createHttpError4(403, "Only teacher or student can request institution leave");
   }
   let context = null;
-  if (userRole === "ADMIN") {
-    const adminProfile = await prisma.adminProfile.findUnique({
-      where: {
-        userId
-      },
-      select: {
-        institutionId: true
-      }
-    });
-    context = adminProfile?.institutionId ? { institutionId: adminProfile.institutionId } : null;
-  }
   if (userRole === "TEACHER") {
     const teacherProfile = await prisma.teacherProfile.findFirst({
       where: {
@@ -6684,6 +6679,91 @@ var requestInstitutionLeave = async (userId, userRole, payload) => {
     }
   });
 };
+var listInstitutionLeaveRequestsForSuperAdmin = async (query) => {
+  const status = query.status?.trim().toUpperCase();
+  const where = status && (status === "PENDING" || status === "APPROVED" || status === "REJECTED") ? { status } : void 0;
+  return prisma.institutionLeaveRequest.findMany({
+    where,
+    include: {
+      requesterUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true
+        }
+      },
+      institution: {
+        select: {
+          id: true,
+          name: true,
+          shortName: true,
+          type: true
+        }
+      },
+      reviewedByUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true
+        }
+      }
+    },
+    orderBy: {
+      createdAt: "desc"
+    }
+  });
+};
+var reviewInstitutionLeaveRequestBySuperAdmin = async (reviewerUserId, requestId, payload) => {
+  const leaveRequest = await prisma.institutionLeaveRequest.findUnique({
+    where: {
+      id: requestId
+    },
+    select: {
+      id: true,
+      status: true
+    }
+  });
+  if (!leaveRequest) {
+    throw createHttpError4(404, "Institution leave request not found");
+  }
+  if (leaveRequest.status !== "PENDING") {
+    throw createHttpError4(400, "Only pending leave requests can be reviewed");
+  }
+  return prisma.institutionLeaveRequest.update({
+    where: {
+      id: requestId
+    },
+    data: {
+      status: payload.status,
+      reviewedByUserId: reviewerUserId,
+      reviewedAt: /* @__PURE__ */ new Date()
+    },
+    include: {
+      requesterUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true
+        }
+      },
+      institution: {
+        select: {
+          id: true,
+          name: true,
+          shortName: true,
+          type: true
+        }
+      },
+      reviewedByUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true
+        }
+      }
+    }
+  });
+};
 var AuthService = {
   registerUser,
   loginUser,
@@ -6694,7 +6774,9 @@ var AuthService = {
   requestPasswordReset,
   resetPassword,
   changePassword,
-  requestInstitutionLeave
+  requestInstitutionLeave,
+  listInstitutionLeaveRequestsForSuperAdmin,
+  reviewInstitutionLeaveRequestBySuperAdmin
 };
 
 // src/app/module/auth/auth.controller.ts
@@ -6812,6 +6894,31 @@ var leaveInstitution = catchAsync(async (req, res) => {
     data: result
   });
 });
+var listInstitutionLeaveRequests = catchAsync(async (req, res) => {
+  const result = await AuthService.listInstitutionLeaveRequestsForSuperAdmin(req.query);
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Institution leave requests fetched successfully",
+    data: result
+  });
+});
+var reviewInstitutionLeaveRequest = catchAsync(async (req, res) => {
+  const user = res.locals.authUser;
+  const requestIdParam = req.params.requestId;
+  const requestId = Array.isArray(requestIdParam) ? requestIdParam[0] : requestIdParam;
+  const result = await AuthService.reviewInstitutionLeaveRequestBySuperAdmin(
+    user.id,
+    requestId,
+    req.body
+  );
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Institution leave request reviewed successfully",
+    data: result
+  });
+});
 var AuthController = {
   registerUser: registerUser2,
   loginUser: loginUser2,
@@ -6823,7 +6930,9 @@ var AuthController = {
   forgotPassword,
   resetPassword: resetPassword2,
   changePassword: changePassword2,
-  leaveInstitution
+  leaveInstitution,
+  listInstitutionLeaveRequests,
+  reviewInstitutionLeaveRequest
 };
 
 // src/app/module/auth/auth.validation.ts
@@ -6910,6 +7019,19 @@ var leaveInstitutionSchema = z4.object({
     reason: z4.string("reason must be a string").trim().max(300).optional()
   })
 });
+var listInstitutionLeaveRequestsSchema = z4.object({
+  query: z4.object({
+    status: z4.enum(["PENDING", "APPROVED", "REJECTED"]).optional()
+  })
+});
+var reviewInstitutionLeaveRequestSchema = z4.object({
+  params: z4.object({
+    requestId: z4.uuid("Please provide a valid leave request id")
+  }),
+  body: z4.object({
+    status: z4.enum(["APPROVED", "REJECTED"])
+  })
+});
 var AuthValidation = {
   registerSchema,
   loginSchema,
@@ -6919,6 +7041,8 @@ var AuthValidation = {
   forgotPasswordSchema,
   resetPasswordSchema,
   leaveInstitutionSchema,
+  listInstitutionLeaveRequestsSchema,
+  reviewInstitutionLeaveRequestSchema,
   verifyEmailSchema,
   refreshTokenSchema
 };
@@ -6961,9 +7085,21 @@ router3.post(
 );
 router3.post(
   "/leave-institution",
-  requireSessionRole("ADMIN", "TEACHER", "STUDENT"),
+  requireSessionRole("TEACHER", "STUDENT"),
   validateRequest(AuthValidation.leaveInstitutionSchema),
   AuthController.leaveInstitution
+);
+router3.get(
+  "/leave-institution/superadmin",
+  requireSessionRole("SUPERADMIN"),
+  validateRequest(AuthValidation.listInstitutionLeaveRequestsSchema),
+  AuthController.listInstitutionLeaveRequests
+);
+router3.patch(
+  "/leave-institution/superadmin/:requestId/review",
+  requireSessionRole("SUPERADMIN"),
+  validateRequest(AuthValidation.reviewInstitutionLeaveRequestSchema),
+  AuthController.reviewInstitutionLeaveRequest
 );
 router3.get(
   "/access-status",
@@ -8552,6 +8688,12 @@ var readQueryValue4 = (value) => {
   }
   return typeof value === "string" ? value : void 0;
 };
+function getCallbackPayload(req) {
+  return {
+    ...req.query,
+    ...req.body
+  };
+}
 var createSubAdminAccount2 = catchAsync(async (req, res) => {
   const user = res.locals.authUser;
   const result = await InstitutionAdminService.createSubAdminAccount(user.id, req.body);
@@ -8628,21 +8770,21 @@ var initiateSubscriptionRenewal2 = catchAsync(async (req, res) => {
 var handleRenewalPaymentSuccess = catchAsync(async (req, res) => {
   const result = await InstitutionAdminService.handleSubscriptionRenewalPaymentCallback(
     "success",
-    req.query
+    getCallbackPayload(req)
   );
   res.redirect(result.redirectUrl);
 });
 var handleRenewalPaymentFail = catchAsync(async (req, res) => {
   const result = await InstitutionAdminService.handleSubscriptionRenewalPaymentCallback(
     "failed",
-    req.query
+    getCallbackPayload(req)
   );
   res.redirect(result.redirectUrl);
 });
 var handleRenewalPaymentCancel = catchAsync(async (req, res) => {
   const result = await InstitutionAdminService.handleSubscriptionRenewalPaymentCallback(
     "cancelled",
-    req.query
+    getCallbackPayload(req)
   );
   res.redirect(result.redirectUrl);
 });
@@ -8824,6 +8966,18 @@ router6.get(
   InstitutionAdminController.handleRenewalPaymentFail
 );
 router6.get(
+  "/subscription/renew/payment/cancel",
+  InstitutionAdminController.handleRenewalPaymentCancel
+);
+router6.post(
+  "/subscription/renew/payment/success",
+  InstitutionAdminController.handleRenewalPaymentSuccess
+);
+router6.post(
+  "/subscription/renew/payment/fail",
+  InstitutionAdminController.handleRenewalPaymentFail
+);
+router6.post(
   "/subscription/renew/payment/cancel",
   InstitutionAdminController.handleRenewalPaymentCancel
 );
@@ -15477,7 +15631,7 @@ var isAllowedRequestOrigin = (origin) => {
   }
   return originPolicy.isAllowedOrigin(origin);
 };
-var isPaymentGatewayCallbackPath = (path3) => path3.startsWith("/api/v1/student/fees/payment/") || path3.startsWith("/api/v1/institution-applications/admin/subscription/payment/");
+var isPaymentGatewayCallbackPath = (path3) => path3.startsWith("/api/v1/student/fees/payment/") || path3.startsWith("/api/v1/institution-applications/admin/subscription/payment/") || path3.startsWith("/api/v1/institution-admin/subscription/renew/payment/");
 var corsOptions = {
   origin: (origin, callback) => {
     if (isAllowedRequestOrigin(origin)) {

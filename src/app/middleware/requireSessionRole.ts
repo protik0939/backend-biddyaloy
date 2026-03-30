@@ -71,19 +71,30 @@ async function hasActiveInstitutionSubscription(institutionId: string): Promise<
 }
 
 function canBypassSubscriptionExpiry(user: SessionUser, req: Request) {
-  if (user.role !== "ADMIN") {
-    return false;
-  }
-
   const normalizedOriginalUrl = req.originalUrl?.split("?")[0] ?? "";
   const normalizedPath = req.path ?? "";
   const normalizedRoutePath = `${req.baseUrl ?? ""}${req.path ?? ""}`;
 
-  return (
+  const isRenewInitiateRoute =
     normalizedOriginalUrl === "/api/v1/institution-admin/subscription/renew/initiate" ||
     normalizedPath === "/subscription/renew/initiate" ||
-    normalizedRoutePath === "/api/v1/institution-admin/subscription/renew/initiate"
-  );
+    normalizedRoutePath === "/api/v1/institution-admin/subscription/renew/initiate";
+
+  if (user.role === "ADMIN" && isRenewInitiateRoute) {
+    return true;
+  }
+
+  const canRequestLeave = user.role === "TEACHER" || user.role === "STUDENT";
+  const isLeaveRoute =
+    normalizedOriginalUrl === "/api/v1/auth/leave-institution" ||
+    normalizedPath === "/leave-institution" ||
+    normalizedRoutePath === "/api/v1/auth/leave-institution";
+
+  if (canRequestLeave && isLeaveRoute) {
+    return true;
+  }
+
+  return false;
 }
 
 const SESSION_COOKIE_KEYS = [
