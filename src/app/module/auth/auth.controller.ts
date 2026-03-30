@@ -128,6 +128,18 @@ const changePassword = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const leaveInstitution = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string; role: string };
+  const result = await AuthService.requestInstitutionLeave(user.id, user.role, req.body);
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Institution leave request submitted successfully",
+    data: result,
+  });
+});
+
 export const AuthController = {
   registerUser,
   loginUser,
@@ -139,4 +151,5 @@ export const AuthController = {
   forgotPassword,
   resetPassword,
   changePassword,
+  leaveInstitution,
 };

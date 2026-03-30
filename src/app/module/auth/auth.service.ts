@@ -6,6 +6,7 @@ import {
   IChangePasswordPayload,
   IForgotPasswordPayload,
   ILoginUser,
+  IRequestInstitutionLeavePayload,
   IRegisterUser,
   IResetPasswordPayload,
   IVerifyAuthOtpPayload,
@@ -433,6 +434,93 @@ const changePassword = async (payload: IChangePasswordPayload, cookieHeader?: st
   };
 };
 
+function createHttpError(statusCode: number, message: string) {
+  const error = new Error(message) as Error & { statusCode?: number };
+  error.statusCode = statusCode;
+  return error;
+}
+
+const requestInstitutionLeave = async (
+  userId: string,
+  userRole: string,
+  payload: IRequestInstitutionLeavePayload,
+) => {
+  if (userRole !== "ADMIN" && userRole !== "TEACHER") {
+    throw createHttpError(403, "Only admin or teacher can request institution leave");
+  }
+
+  const context =
+    userRole === "ADMIN"
+      ? await prisma.adminProfile.findUnique({
+          where: {
+            userId,
+          },
+          select: {
+            institutionId: true,
+          },
+        })
+      : await prisma.teacherProfile.findFirst({
+          where: {
+            userId,
+          },
+          select: {
+            institutionId: true,
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+        });
+
+  if (!context?.institutionId) {
+    throw createHttpError(400, "No institution assignment found for this account");
+  }
+
+  const activeSubscription = await (prisma as any).institutionSubscription.findFirst({
+    where: {
+      institutionId: context.institutionId,
+      status: "ACTIVE",
+      endsAt: {
+        gt: new Date(),
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (activeSubscription?.id) {
+    throw createHttpError(
+      400,
+      "Institution subscription is active. Leave option is available only after expiry.",
+    );
+  }
+
+  const existingPending = await (prisma as any).institutionLeaveRequest.findFirst({
+    where: {
+      requesterUserId: userId,
+      institutionId: context.institutionId,
+      status: "PENDING",
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  if (existingPending) {
+    return existingPending;
+  }
+
+  return (prisma as any).institutionLeaveRequest.create({
+    data: {
+      requesterUserId: userId,
+      requesterRole: userRole,
+      institutionId: context.institutionId,
+      reason: payload.reason?.trim() || null,
+      status: "PENDING",
+    },
+  });
+};
+
 export const AuthService = {
   registerUser,
   loginUser,
@@ -443,4 +531,5 @@ export const AuthService = {
   requestPasswordReset,
   resetPassword,
   changePassword,
+  requestInstitutionLeave,
 };

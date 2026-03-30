@@ -7,7 +7,7 @@ const passwordSchema = z
   .max(64, "Password must not exceed 64 characters")
   .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
   .regex(/[a-z]/, "Password must contain at least one lowercase letter")
-  .regex(/[0-9]/, "Password must contain at least one number")
+  .regex(/\d/, "Password must contain at least one number")
   .regex(
     /[^A-Za-z0-9]/,
     "Password must contain at least one special character",
@@ -128,6 +128,12 @@ const refreshTokenSchema = z.object({
   }),
 });
 
+const leaveInstitutionSchema = z.object({
+  body: z.object({
+    reason: z.string("reason must be a string").trim().max(300).optional(),
+  }),
+});
+
 export const AuthValidation = {
   registerSchema,
   loginSchema,
@@ -136,6 +142,7 @@ export const AuthValidation = {
   changePasswordSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  leaveInstitutionSchema,
   verifyEmailSchema,
   refreshTokenSchema,
 };

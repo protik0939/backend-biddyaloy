@@ -1,0 +1,25 @@
+model InstitutionLeaveRequest {
+  id String @id @default(uuid())
+
+  requesterUserId String
+  requesterUser User @relation("InstitutionLeaveRequestRequester", fields: [requesterUserId], references: [id])
+
+  requesterRole UserRole
+
+  institutionId String
+  institution Institution @relation(fields: [institutionId], references: [id])
+
+  status InstitutionLeaveRequestStatus @default(PENDING)
+  reason String?
+
+  reviewedByUserId String?
+  reviewedByUser User? @relation("InstitutionLeaveRequestReviewer", fields: [reviewedByUserId], references: [id])
+  reviewedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([requesterUserId, status])
+  @@index([institutionId, status])
+  @@map("institution_leave_requests")
+}

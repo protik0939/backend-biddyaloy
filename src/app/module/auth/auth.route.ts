@@ -41,6 +41,12 @@ router.post(
 	validateRequest(AuthValidation.changePasswordSchema),
 	AuthController.changePassword,
 );
+router.post(
+	"/leave-institution",
+	requireSessionRole("ADMIN", "TEACHER"),
+	validateRequest(AuthValidation.leaveInstitutionSchema),
+	AuthController.leaveInstitution,
+);
 router.get(
 	"/access-status",
 	requireSessionRole("SUPERADMIN", "ADMIN", "FACULTY", "DEPARTMENT", "TEACHER", "STUDENT"),

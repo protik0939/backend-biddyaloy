@@ -30,6 +30,7 @@ model Institution {
     schedules Schedule[]
     routines Routine[]
     notices Notice[]
+    leaveRequests InstitutionLeaveRequest[]
     sourceTransferRequests InstitutionTransferRequest[] @relation("TransferRequestSourceInstitution")
     targetTransferRequests InstitutionTransferRequest[] @relation("TransferRequestTargetInstitution")
 

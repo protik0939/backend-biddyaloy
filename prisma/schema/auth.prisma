@@ -23,6 +23,8 @@ model User {
   emailOtps EmailOtp[]
   requestedTransferRequests InstitutionTransferRequest[] @relation("TransferRequestRequesterUser")
   reviewedTransferRequests InstitutionTransferRequest[] @relation("TransferRequestReviewerUser")
+  requestedInstitutionLeaveRequests InstitutionLeaveRequest[] @relation("InstitutionLeaveRequestRequester")
+  reviewedInstitutionLeaveRequests InstitutionLeaveRequest[] @relation("InstitutionLeaveRequestReviewer")
   sentNotices Notice[] @relation("NoticeSenderUser")
   readNotices NoticeRead[]
 

@@ -37,6 +37,10 @@ interface IChangePasswordPayload {
   revokeOtherSessions?: boolean;
 }
 
+interface IRequestInstitutionLeavePayload {
+  reason?: string;
+}
+
 export {
   IRegisterUser,
   ILoginUser,
@@ -45,4 +49,5 @@ export {
   IForgotPasswordPayload,
   IResetPasswordPayload,
   IChangePasswordPayload,
+  IRequestInstitutionLeavePayload,
 };
