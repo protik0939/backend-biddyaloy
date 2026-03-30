@@ -3,8 +3,8 @@ model StudentProfile {
     studentsId     String      @unique
     bio            String?
 
-    institutionId  String?
-    institution    Institution? @relation(fields: [institutionId], references: [id])
+    institutionId  String
+    institution    Institution @relation(fields: [institutionId], references: [id])
 
     departmentId String?
     department   Department? @relation(fields: [departmentId], references: [id])

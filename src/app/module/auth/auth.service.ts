@@ -588,9 +588,6 @@ const reviewInstitutionLeaveRequestBySuperAdmin = async (
     select: {
       id: true,
       status: true,
-      requesterRole: true,
-      requesterUserId: true,
-      institutionId: true,
     },
   });
 
@@ -602,97 +599,39 @@ const reviewInstitutionLeaveRequestBySuperAdmin = async (
     throw createHttpError(400, "Only pending leave requests can be reviewed");
   }
 
-  return prisma.$transaction(async (trx) => {
-    const reviewedRequest = await (trx as any).institutionLeaveRequest.update({
-      where: {
-        id: requestId,
-      },
-      data: {
-        status: payload.status,
-        reviewedByUserId: reviewerUserId,
-        reviewedAt: new Date(),
-      },
-      include: {
-        requesterUser: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-        institution: {
-          select: {
-            id: true,
-            name: true,
-            shortName: true,
-            type: true,
-          },
-        },
-        reviewedByUser: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
+  return (prisma as any).institutionLeaveRequest.update({
+    where: {
+      id: requestId,
+    },
+    data: {
+      status: payload.status,
+      reviewedByUserId: reviewerUserId,
+      reviewedAt: new Date(),
+    },
+    include: {
+      requesterUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
         },
       },
-    });
-
-    if (payload.status === "APPROVED") {
-      if (leaveRequest.requesterRole === "TEACHER") {
-        const teacherProfile = await trx.teacherProfile.findFirst({
-          where: {
-            userId: leaveRequest.requesterUserId,
-            institutionId: leaveRequest.institutionId,
-          },
-          select: {
-            id: true,
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-        });
-
-        if (teacherProfile?.id) {
-          await trx.teacherProfile.update({
-            where: {
-              id: teacherProfile.id,
-            },
-            data: {
-              institutionId: null,
-            },
-          });
-        }
-      }
-
-      if (leaveRequest.requesterRole === "STUDENT") {
-        const studentProfile = await trx.studentProfile.findFirst({
-          where: {
-            userId: leaveRequest.requesterUserId,
-            institutionId: leaveRequest.institutionId,
-          },
-          select: {
-            id: true,
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-        });
-
-        if (studentProfile?.id) {
-          await trx.studentProfile.update({
-            where: {
-              id: studentProfile.id,
-            },
-            data: {
-              institutionId: null,
-            },
-          });
-        }
-      }
-    }
-
-    return reviewedRequest;
+      institution: {
+        select: {
+          id: true,
+          name: true,
+          shortName: true,
+          type: true,
+        },
+      },
+      reviewedByUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+    },
   });
 };
 
