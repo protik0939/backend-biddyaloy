@@ -27,6 +27,7 @@ model Department {
     schedules Schedule[]
     routines Routine[]
     transferRequestsAsTargetDepartment InstitutionTransferRequest[]
+    activeAdminProfiles AdminProfile[] @relation("AdminProfileActiveDepartment")
 
     @@map("departments")
 }

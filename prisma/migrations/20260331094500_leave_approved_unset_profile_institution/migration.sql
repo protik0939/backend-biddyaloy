@@ -1,0 +1,2 @@
+-- Intentionally left as no-op migration.
+-- This migration directory existed without SQL and caused Prisma P3015.

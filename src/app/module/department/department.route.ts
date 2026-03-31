@@ -7,6 +7,18 @@ import { DepartmentValidation } from "./department.validation";
 const router = Router();
 const departmentRoles: ["ADMIN", "FACULTY", "DEPARTMENT"] = ["ADMIN", "FACULTY", "DEPARTMENT"];
 
+router.get(
+  "/workspace/departments",
+  requireSessionRole(...departmentRoles),
+  DepartmentController.listWorkspaceDepartments,
+);
+router.put(
+  "/workspace/active-department",
+  requireSessionRole(...departmentRoles),
+  validateRequest(DepartmentValidation.setActiveDepartmentWorkspaceSchema),
+  DepartmentController.setActiveWorkspaceDepartment,
+);
+
 router.get("/profile", requireSessionRole(...departmentRoles), DepartmentController.getDepartmentProfile);
 router.get(
   "/dashboard-summary",

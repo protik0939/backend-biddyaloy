@@ -24,6 +24,7 @@ import {
   ICreateTeacherPayload,
   IListInstitutionTransferRequestsQuery,
   IListStudentAdmissionApplicationsQuery,
+  ISetActiveDepartmentWorkspacePayload,
   IReviewInstitutionTransferRequestPayload,
   IReviewStudentAdmissionApplicationPayload,
   IListDepartmentFeeConfigurationsQuery,
@@ -77,13 +78,14 @@ function routineDelegate() {
 const FEE_PAYMENT_STATUS_SUCCESS = "SUCCESS";
 
 async function resolveDepartmentContext(userId: string, departmentId?: string) {
-  const adminProfile = await prisma.adminProfile.findUnique({
+  const adminProfile = await (prisma as any).adminProfile.findUnique({
     where: {
       userId,
     },
     select: {
       role: true,
       institutionId: true,
+      activeDepartmentId: true,
     },
   });
 
@@ -132,6 +134,36 @@ async function resolveDepartmentContext(userId: string, departmentId?: string) {
       institutionId: adminProfile.institutionId,
       departmentId: byId.id,
     };
+  }
+
+  if (adminProfile.activeDepartmentId && (isInstitutionAdmin || isFacultyAdmin)) {
+    const preferredDepartment = await prisma.department.findFirst({
+      where: {
+        id: adminProfile.activeDepartmentId,
+        faculty: {
+          institutionId: adminProfile.institutionId,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (preferredDepartment) {
+      return {
+        institutionId: adminProfile.institutionId,
+        departmentId: preferredDepartment.id,
+      };
+    }
+
+    await (prisma as any).adminProfile.update({
+      where: {
+        userId,
+      },
+      data: {
+        activeDepartmentId: null,
+      },
+    });
   }
 
   const departments = await prisma.department.findMany({
@@ -208,7 +240,7 @@ async function resolveDepartmentContext(userId: string, departmentId?: string) {
   }
 
   if (departments.length > 1) {
-    if (canAccessForUniversity || canAccessForNonUniversity) {
+    if (isDepartmentAdmin || canAccessForUniversity || canAccessForNonUniversity) {
       return {
         institutionId: adminProfile.institutionId,
         departmentId: departments[0].id,
@@ -223,6 +255,124 @@ async function resolveDepartmentContext(userId: string, departmentId?: string) {
     departmentId: departments[0].id,
   };
 }
+
+const listWorkspaceDepartments = async (userId: string) => {
+  const adminProfile = await (prisma as any).adminProfile.findUnique({
+    where: {
+      userId,
+    },
+    select: {
+      role: true,
+      institutionId: true,
+      activeDepartmentId: true,
+    },
+  });
+
+  if (!adminProfile?.institutionId) {
+    throw createHttpError(403, "Only institution academic admins can access this resource");
+  }
+
+  const canAccessWorkspaceSelection =
+    adminProfile.role === AdminRole.INSTITUTIONADMIN ||
+    adminProfile.role === AdminRole.FACULTYADMIN ||
+    adminProfile.role === AdminRole.DEPARTMENTADMIN;
+
+  if (!canAccessWorkspaceSelection) {
+    throw createHttpError(403, "Only academic admins can access workspace departments");
+  }
+
+  const departments = await prisma.department.findMany({
+    where: {
+      faculty: {
+        institutionId: adminProfile.institutionId,
+      },
+    },
+    select: {
+      id: true,
+      fullName: true,
+      shortName: true,
+      faculty: {
+        select: {
+          id: true,
+          fullName: true,
+          shortName: true,
+        },
+      },
+    },
+    orderBy: [{ faculty: { fullName: "asc" } }, { fullName: "asc" }],
+  });
+
+  return {
+    activeDepartmentId: adminProfile.activeDepartmentId ?? null,
+    departments,
+  };
+};
+
+const setActiveWorkspaceDepartment = async (
+  userId: string,
+  payload: ISetActiveDepartmentWorkspacePayload,
+) => {
+  const adminProfile = await (prisma as any).adminProfile.findUnique({
+    where: {
+      userId,
+    },
+    select: {
+      role: true,
+      institutionId: true,
+    },
+  });
+
+  if (!adminProfile?.institutionId) {
+    throw createHttpError(403, "Only institution academic admins can access this resource");
+  }
+
+  const canSetWorkspaceSelection =
+    adminProfile.role === AdminRole.INSTITUTIONADMIN ||
+    adminProfile.role === AdminRole.FACULTYADMIN;
+
+  if (!canSetWorkspaceSelection) {
+    throw createHttpError(403, "Only institution and faculty admins can switch active department");
+  }
+
+  const department = await prisma.department.findFirst({
+    where: {
+      id: payload.departmentId,
+      faculty: {
+        institutionId: adminProfile.institutionId,
+      },
+    },
+    select: {
+      id: true,
+      fullName: true,
+      shortName: true,
+      faculty: {
+        select: {
+          id: true,
+          fullName: true,
+          shortName: true,
+        },
+      },
+    },
+  });
+
+  if (!department) {
+    throw createHttpError(404, "Department not found for this institution");
+  }
+
+  await (prisma as any).adminProfile.update({
+    where: {
+      userId,
+    },
+    data: {
+      activeDepartmentId: department.id,
+    },
+  });
+
+  return {
+    activeDepartmentId: department.id,
+    department,
+  };
+};
 
 async function resolveAcademicInstitutionContext(userId: string) {
   const adminProfile = await prisma.adminProfile.findUnique({
@@ -4138,6 +4288,8 @@ const getStudentPaymentInfoByStudentId = async (
 };
 
 export const DepartmentService = {
+  listWorkspaceDepartments,
+  setActiveWorkspaceDepartment,
   getDepartmentProfile,
   updateDepartmentProfile,
   listSemesters,

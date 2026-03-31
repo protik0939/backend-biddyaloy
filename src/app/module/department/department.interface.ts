@@ -200,6 +200,10 @@ export interface IReviewStudentAdmissionApplicationPayload {
   bio?: string;
 }
 
+export interface ISetActiveDepartmentWorkspacePayload {
+  departmentId: string;
+}
+
 export interface IUpsertDepartmentFeeConfigurationPayload {
   semesterId: string;
   totalFeeAmount: number;

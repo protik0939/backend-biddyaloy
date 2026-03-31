@@ -29,6 +29,30 @@ const getDepartmentProfile = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const listWorkspaceDepartments = catchAsync(async (_req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await DepartmentService.listWorkspaceDepartments(user.id);
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Workspace departments fetched successfully",
+    data: result,
+  });
+});
+
+const setActiveWorkspaceDepartment = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await DepartmentService.setActiveWorkspaceDepartment(user.id, req.body);
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Active workspace department updated successfully",
+    data: result,
+  });
+});
+
 const getDashboardSummary = catchAsync(async (_req: Request, res: Response) => {
   const user = res.locals.authUser as { id: string };
   const result = await DepartmentService.getDashboardSummary(user.id);
@@ -739,6 +763,8 @@ const reviewInstitutionTransferRequest = catchAsync(async (req: Request, res: Re
 });
 
 export const DepartmentController = {
+  listWorkspaceDepartments,
+  setActiveWorkspaceDepartment,
   getDepartmentProfile,
   getDashboardSummary,
   updateDepartmentProfile,

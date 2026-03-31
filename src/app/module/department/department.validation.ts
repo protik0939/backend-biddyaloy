@@ -21,6 +21,12 @@ const passwordSchema = z
   .regex(/[^A-Za-z0-9]/, "Password must contain at least one special character");
 
 export const DepartmentValidation = {
+  setActiveDepartmentWorkspaceSchema: z.object({
+    body: z.object({
+      departmentId: uuidSchema,
+    }),
+  }),
+
   updateDepartmentProfileSchema: z.object({
     body: z
       .object({

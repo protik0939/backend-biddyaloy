@@ -6,6 +6,8 @@ model AdminProfile {
 
   institutionId String
   institution   Institution @relation(fields: [institutionId], references: [id])
+  activeDepartmentId String?
+  activeDepartment   Department? @relation("AdminProfileActiveDepartment", fields: [activeDepartmentId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
