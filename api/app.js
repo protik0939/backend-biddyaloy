@@ -1,3 +1,9 @@
+var __defProp = Object.defineProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+
 // src/app.ts
 import express from "express";
 import cors from "cors";
@@ -179,14 +185,14 @@ var recommendPostings = async (payload) => {
       ]
     })
   });
-  const raw2 = await response.json().catch(() => ({}));
+  const raw3 = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw createHttpError(
       502,
-      raw2.error?.message || "OpenRouter request failed"
+      raw3.error?.message || "OpenRouter request failed"
     );
   }
-  const text = extractTextContent(raw2.choices?.[0]?.message?.content);
+  const text = extractTextContent(raw3.choices?.[0]?.message?.content);
   const parsed = extractJsonPayload(text);
   const recommendedIds = Array.isArray(parsed?.recommendedPostingIds) ? parsed?.recommendedPostingIds.filter(
     (item) => typeof item === "string" && item.length > 0
@@ -379,12 +385,145 @@ function getPrismaClientClass() {
 }
 
 // src/generated/prisma/internal/prismaNamespace.ts
+var prismaNamespace_exports = {};
+__export(prismaNamespace_exports, {
+  AccountScalarFieldEnum: () => AccountScalarFieldEnum,
+  AdminProfileScalarFieldEnum: () => AdminProfileScalarFieldEnum,
+  AnyNull: () => AnyNull2,
+  AttendanceScalarFieldEnum: () => AttendanceScalarFieldEnum,
+  BatchScalarFieldEnum: () => BatchScalarFieldEnum,
+  ClassRoomScalarFieldEnum: () => ClassRoomScalarFieldEnum,
+  CourseRegistrationScalarFieldEnum: () => CourseRegistrationScalarFieldEnum,
+  CourseScalarFieldEnum: () => CourseScalarFieldEnum,
+  DbNull: () => DbNull2,
+  Decimal: () => Decimal2,
+  DepartmentScalarFieldEnum: () => DepartmentScalarFieldEnum,
+  DepartmentSemesterFeeConfigurationScalarFieldEnum: () => DepartmentSemesterFeeConfigurationScalarFieldEnum,
+  EmailOtpScalarFieldEnum: () => EmailOtpScalarFieldEnum,
+  FacultyScalarFieldEnum: () => FacultyScalarFieldEnum,
+  InstitutionApplicationScalarFieldEnum: () => InstitutionApplicationScalarFieldEnum,
+  InstitutionLeaveRequestScalarFieldEnum: () => InstitutionLeaveRequestScalarFieldEnum,
+  InstitutionPaymentGatewayCredentialScalarFieldEnum: () => InstitutionPaymentGatewayCredentialScalarFieldEnum,
+  InstitutionScalarFieldEnum: () => InstitutionScalarFieldEnum,
+  InstitutionSubscriptionRenewalPaymentScalarFieldEnum: () => InstitutionSubscriptionRenewalPaymentScalarFieldEnum,
+  InstitutionSubscriptionScalarFieldEnum: () => InstitutionSubscriptionScalarFieldEnum,
+  InstitutionTransferRequestScalarFieldEnum: () => InstitutionTransferRequestScalarFieldEnum,
+  JsonNull: () => JsonNull2,
+  JsonNullValueFilter: () => JsonNullValueFilter,
+  JsonNullValueInput: () => JsonNullValueInput,
+  ModelName: () => ModelName,
+  NoticeReadScalarFieldEnum: () => NoticeReadScalarFieldEnum,
+  NoticeRecipientRoleScalarFieldEnum: () => NoticeRecipientRoleScalarFieldEnum,
+  NoticeScalarFieldEnum: () => NoticeScalarFieldEnum,
+  NullTypes: () => NullTypes2,
+  NullableJsonNullValueInput: () => NullableJsonNullValueInput,
+  NullsOrder: () => NullsOrder,
+  PrismaClientInitializationError: () => PrismaClientInitializationError2,
+  PrismaClientKnownRequestError: () => PrismaClientKnownRequestError2,
+  PrismaClientRustPanicError: () => PrismaClientRustPanicError2,
+  PrismaClientUnknownRequestError: () => PrismaClientUnknownRequestError2,
+  PrismaClientValidationError: () => PrismaClientValidationError2,
+  ProgramScalarFieldEnum: () => ProgramScalarFieldEnum,
+  QueryMode: () => QueryMode,
+  RoutineScalarFieldEnum: () => RoutineScalarFieldEnum,
+  ScheduleScalarFieldEnum: () => ScheduleScalarFieldEnum,
+  SectionCourseTeacherAssignmentScalarFieldEnum: () => SectionCourseTeacherAssignmentScalarFieldEnum,
+  SectionScalarFieldEnum: () => SectionScalarFieldEnum,
+  SemesterScalarFieldEnum: () => SemesterScalarFieldEnum,
+  SessionScalarFieldEnum: () => SessionScalarFieldEnum,
+  SortOrder: () => SortOrder,
+  Sql: () => Sql2,
+  StudentAdmissionApplicationScalarFieldEnum: () => StudentAdmissionApplicationScalarFieldEnum,
+  StudentAdmissionPostScalarFieldEnum: () => StudentAdmissionPostScalarFieldEnum,
+  StudentApplicationProfileScalarFieldEnum: () => StudentApplicationProfileScalarFieldEnum,
+  StudentClassworkSubmissionScalarFieldEnum: () => StudentClassworkSubmissionScalarFieldEnum,
+  StudentFeePaymentScalarFieldEnum: () => StudentFeePaymentScalarFieldEnum,
+  StudentProfileScalarFieldEnum: () => StudentProfileScalarFieldEnum,
+  TeacherApplicationProfileScalarFieldEnum: () => TeacherApplicationProfileScalarFieldEnum,
+  TeacherClassworkScalarFieldEnum: () => TeacherClassworkScalarFieldEnum,
+  TeacherJobApplicationScalarFieldEnum: () => TeacherJobApplicationScalarFieldEnum,
+  TeacherJobPostScalarFieldEnum: () => TeacherJobPostScalarFieldEnum,
+  TeacherMarkScalarFieldEnum: () => TeacherMarkScalarFieldEnum,
+  TeacherProfileScalarFieldEnum: () => TeacherProfileScalarFieldEnum,
+  TransactionIsolationLevel: () => TransactionIsolationLevel,
+  UserScalarFieldEnum: () => UserScalarFieldEnum,
+  VerificationScalarFieldEnum: () => VerificationScalarFieldEnum,
+  defineExtension: () => defineExtension,
+  empty: () => empty2,
+  getExtensionContext: () => getExtensionContext,
+  join: () => join2,
+  prismaVersion: () => prismaVersion,
+  raw: () => raw2,
+  sql: () => sql
+});
 import * as runtime2 from "@prisma/client/runtime/client";
+var PrismaClientKnownRequestError2 = runtime2.PrismaClientKnownRequestError;
+var PrismaClientUnknownRequestError2 = runtime2.PrismaClientUnknownRequestError;
+var PrismaClientRustPanicError2 = runtime2.PrismaClientRustPanicError;
+var PrismaClientInitializationError2 = runtime2.PrismaClientInitializationError;
+var PrismaClientValidationError2 = runtime2.PrismaClientValidationError;
+var sql = runtime2.sqltag;
+var empty2 = runtime2.empty;
+var join2 = runtime2.join;
+var raw2 = runtime2.raw;
+var Sql2 = runtime2.Sql;
+var Decimal2 = runtime2.Decimal;
 var getExtensionContext = runtime2.Extensions.getExtensionContext;
+var prismaVersion = {
+  client: "7.6.0",
+  engine: "75cbdc1eb7150937890ad5465d861175c6624711"
+};
 var NullTypes2 = {
   DbNull: runtime2.NullTypes.DbNull,
   JsonNull: runtime2.NullTypes.JsonNull,
   AnyNull: runtime2.NullTypes.AnyNull
+};
+var DbNull2 = runtime2.DbNull;
+var JsonNull2 = runtime2.JsonNull;
+var AnyNull2 = runtime2.AnyNull;
+var ModelName = {
+  AdminProfile: "AdminProfile",
+  Attendance: "Attendance",
+  User: "User",
+  Session: "Session",
+  Account: "Account",
+  Verification: "Verification",
+  EmailOtp: "EmailOtp",
+  Batch: "Batch",
+  ClassRoom: "ClassRoom",
+  Course: "Course",
+  CourseRegistration: "CourseRegistration",
+  Department: "Department",
+  Faculty: "Faculty",
+  Institution: "Institution",
+  InstitutionApplication: "InstitutionApplication",
+  InstitutionLeaveRequest: "InstitutionLeaveRequest",
+  InstitutionTransferRequest: "InstitutionTransferRequest",
+  Notice: "Notice",
+  NoticeRecipientRole: "NoticeRecipientRole",
+  NoticeRead: "NoticeRead",
+  DepartmentSemesterFeeConfiguration: "DepartmentSemesterFeeConfiguration",
+  StudentFeePayment: "StudentFeePayment",
+  InstitutionPaymentGatewayCredential: "InstitutionPaymentGatewayCredential",
+  InstitutionSubscriptionRenewalPayment: "InstitutionSubscriptionRenewalPayment",
+  TeacherJobPost: "TeacherJobPost",
+  StudentAdmissionPost: "StudentAdmissionPost",
+  Program: "Program",
+  Routine: "Routine",
+  Schedule: "Schedule",
+  Section: "Section",
+  Semester: "Semester",
+  StudentApplicationProfile: "StudentApplicationProfile",
+  StudentAdmissionApplication: "StudentAdmissionApplication",
+  StudentProfile: "StudentProfile",
+  InstitutionSubscription: "InstitutionSubscription",
+  TeacherMark: "TeacherMark",
+  TeacherJobApplication: "TeacherJobApplication",
+  TeacherClasswork: "TeacherClasswork",
+  StudentClassworkSubmission: "StudentClassworkSubmission",
+  SectionCourseTeacherAssignment: "SectionCourseTeacherAssignment",
+  TeacherApplicationProfile: "TeacherApplicationProfile",
+  TeacherProfile: "TeacherProfile"
 };
 var TransactionIsolationLevel = runtime2.makeStrictEnum({
   ReadUncommitted: "ReadUncommitted",
@@ -392,6 +531,567 @@ var TransactionIsolationLevel = runtime2.makeStrictEnum({
   RepeatableRead: "RepeatableRead",
   Serializable: "Serializable"
 });
+var AdminProfileScalarFieldEnum = {
+  id: "id",
+  role: "role",
+  userId: "userId",
+  institutionId: "institutionId",
+  activeDepartmentId: "activeDepartmentId",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var AttendanceScalarFieldEnum = {
+  id: "id",
+  date: "date",
+  status: "status",
+  courseRegistrationId: "courseRegistrationId",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var UserScalarFieldEnum = {
+  id: "id",
+  name: "name",
+  email: "email",
+  emailVerified: "emailVerified",
+  image: "image",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt",
+  contactNo: "contactNo",
+  presentAddress: "presentAddress",
+  permanentAddress: "permanentAddress",
+  bloodGroup: "bloodGroup",
+  gender: "gender",
+  bio: "bio",
+  role: "role",
+  accountStatus: "accountStatus"
+};
+var SessionScalarFieldEnum = {
+  id: "id",
+  expiresAt: "expiresAt",
+  token: "token",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt",
+  ipAddress: "ipAddress",
+  userAgent: "userAgent",
+  userId: "userId"
+};
+var AccountScalarFieldEnum = {
+  id: "id",
+  accountId: "accountId",
+  providerId: "providerId",
+  userId: "userId",
+  accessToken: "accessToken",
+  refreshToken: "refreshToken",
+  idToken: "idToken",
+  accessTokenExpiresAt: "accessTokenExpiresAt",
+  refreshTokenExpiresAt: "refreshTokenExpiresAt",
+  scope: "scope",
+  password: "password",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var VerificationScalarFieldEnum = {
+  id: "id",
+  identifier: "identifier",
+  value: "value",
+  expiresAt: "expiresAt",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var EmailOtpScalarFieldEnum = {
+  id: "id",
+  userId: "userId",
+  otpHash: "otpHash",
+  expiresAt: "expiresAt",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var BatchScalarFieldEnum = {
+  id: "id",
+  name: "name",
+  description: "description",
+  institutionId: "institutionId",
+  departmentId: "departmentId",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var ClassRoomScalarFieldEnum = {
+  id: "id",
+  name: "name",
+  roomNo: "roomNo",
+  floor: "floor",
+  capacity: "capacity",
+  roomType: "roomType",
+  institutionId: "institutionId",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var CourseScalarFieldEnum = {
+  id: "id",
+  courseCode: "courseCode",
+  courseTitle: "courseTitle",
+  description: "description",
+  credits: "credits",
+  institutionId: "institutionId",
+  departmentId: "departmentId",
+  programId: "programId",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var CourseRegistrationScalarFieldEnum = {
+  id: "id",
+  courseId: "courseId",
+  studentProfileId: "studentProfileId",
+  teacherProfileId: "teacherProfileId",
+  sectionId: "sectionId",
+  departmentId: "departmentId",
+  programId: "programId",
+  semesterId: "semesterId",
+  institutionId: "institutionId",
+  registrationDate: "registrationDate",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var DepartmentScalarFieldEnum = {
+  id: "id",
+  fullName: "fullName",
+  shortName: "shortName",
+  description: "description",
+  facultyId: "facultyId",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var FacultyScalarFieldEnum = {
+  id: "id",
+  fullName: "fullName",
+  shortName: "shortName",
+  description: "description",
+  institutionId: "institutionId",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var InstitutionScalarFieldEnum = {
+  id: "id",
+  name: "name",
+  description: "description",
+  shortName: "shortName",
+  type: "type",
+  institutionLogo: "institutionLogo",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var InstitutionApplicationScalarFieldEnum = {
+  id: "id",
+  applicantUserId: "applicantUserId",
+  institutionName: "institutionName",
+  description: "description",
+  shortName: "shortName",
+  institutionType: "institutionType",
+  institutionLogo: "institutionLogo",
+  subscriptionPlan: "subscriptionPlan",
+  subscriptionAmount: "subscriptionAmount",
+  subscriptionCurrency: "subscriptionCurrency",
+  subscriptionMonths: "subscriptionMonths",
+  subscriptionPaymentStatus: "subscriptionPaymentStatus",
+  subscriptionTranId: "subscriptionTranId",
+  subscriptionGatewayStatus: "subscriptionGatewayStatus",
+  subscriptionGatewaySessionKey: "subscriptionGatewaySessionKey",
+  subscriptionGatewayValId: "subscriptionGatewayValId",
+  subscriptionGatewayBankTranId: "subscriptionGatewayBankTranId",
+  subscriptionGatewayCardType: "subscriptionGatewayCardType",
+  subscriptionGatewayRawPayload: "subscriptionGatewayRawPayload",
+  subscriptionPaidAt: "subscriptionPaidAt",
+  status: "status",
+  rejectionReason: "rejectionReason",
+  reviewedByUserId: "reviewedByUserId",
+  reviewedAt: "reviewedAt",
+  institutionId: "institutionId",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var InstitutionLeaveRequestScalarFieldEnum = {
+  id: "id",
+  requesterUserId: "requesterUserId",
+  requesterRole: "requesterRole",
+  institutionId: "institutionId",
+  status: "status",
+  reason: "reason",
+  reviewedByUserId: "reviewedByUserId",
+  reviewedAt: "reviewedAt",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var InstitutionTransferRequestScalarFieldEnum = {
+  id: "id",
+  entityType: "entityType",
+  status: "status",
+  sourceInstitutionId: "sourceInstitutionId",
+  targetInstitutionId: "targetInstitutionId",
+  requesterUserId: "requesterUserId",
+  reviewerUserId: "reviewerUserId",
+  studentProfileId: "studentProfileId",
+  teacherProfileId: "teacherProfileId",
+  targetDepartmentId: "targetDepartmentId",
+  requestMessage: "requestMessage",
+  responseMessage: "responseMessage",
+  requestedAt: "requestedAt",
+  reviewedAt: "reviewedAt",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var NoticeScalarFieldEnum = {
+  id: "id",
+  title: "title",
+  content: "content",
+  institutionId: "institutionId",
+  senderUserId: "senderUserId",
+  senderRole: "senderRole",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var NoticeRecipientRoleScalarFieldEnum = {
+  id: "id",
+  noticeId: "noticeId",
+  role: "role",
+  createdAt: "createdAt"
+};
+var NoticeReadScalarFieldEnum = {
+  id: "id",
+  noticeId: "noticeId",
+  userId: "userId",
+  readAt: "readAt"
+};
+var DepartmentSemesterFeeConfigurationScalarFieldEnum = {
+  id: "id",
+  institutionId: "institutionId",
+  departmentId: "departmentId",
+  semesterId: "semesterId",
+  totalFeeAmount: "totalFeeAmount",
+  monthlyFeeAmount: "monthlyFeeAmount",
+  currency: "currency",
+  isActive: "isActive",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var StudentFeePaymentScalarFieldEnum = {
+  id: "id",
+  institutionId: "institutionId",
+  departmentId: "departmentId",
+  semesterId: "semesterId",
+  studentProfileId: "studentProfileId",
+  feeConfigurationId: "feeConfigurationId",
+  paymentMode: "paymentMode",
+  status: "status",
+  monthsCovered: "monthsCovered",
+  amount: "amount",
+  currency: "currency",
+  gatewayName: "gatewayName",
+  tranId: "tranId",
+  gatewaySessionKey: "gatewaySessionKey",
+  gatewayValId: "gatewayValId",
+  gatewayBankTranId: "gatewayBankTranId",
+  gatewayCardType: "gatewayCardType",
+  gatewayStatus: "gatewayStatus",
+  gatewayRawPayload: "gatewayRawPayload",
+  paymentInitiatedAt: "paymentInitiatedAt",
+  paidAt: "paidAt",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var InstitutionPaymentGatewayCredentialScalarFieldEnum = {
+  id: "id",
+  institutionId: "institutionId",
+  sslCommerzStoreIdEncrypted: "sslCommerzStoreIdEncrypted",
+  sslCommerzStorePasswordEncrypted: "sslCommerzStorePasswordEncrypted",
+  sslCommerzBaseUrlEncrypted: "sslCommerzBaseUrlEncrypted",
+  sslCommerzStoreIdHash: "sslCommerzStoreIdHash",
+  sslCommerzStorePasswordHash: "sslCommerzStorePasswordHash",
+  sslCommerzBaseUrlHash: "sslCommerzBaseUrlHash",
+  isActive: "isActive",
+  lastUpdatedByUserId: "lastUpdatedByUserId",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var InstitutionSubscriptionRenewalPaymentScalarFieldEnum = {
+  id: "id",
+  institutionId: "institutionId",
+  initiatedByUserId: "initiatedByUserId",
+  plan: "plan",
+  amount: "amount",
+  currency: "currency",
+  monthsCovered: "monthsCovered",
+  status: "status",
+  tranId: "tranId",
+  gatewayStatus: "gatewayStatus",
+  gatewaySessionKey: "gatewaySessionKey",
+  gatewayValId: "gatewayValId",
+  gatewayBankTranId: "gatewayBankTranId",
+  gatewayCardType: "gatewayCardType",
+  gatewayRawPayload: "gatewayRawPayload",
+  paidAt: "paidAt",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var TeacherJobPostScalarFieldEnum = {
+  id: "id",
+  title: "title",
+  location: "location",
+  summary: "summary",
+  details: "details",
+  institutionId: "institutionId",
+  facultyId: "facultyId",
+  departmentId: "departmentId",
+  programId: "programId",
+  createdByUserId: "createdByUserId",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var StudentAdmissionPostScalarFieldEnum = {
+  id: "id",
+  title: "title",
+  location: "location",
+  summary: "summary",
+  details: "details",
+  institutionId: "institutionId",
+  facultyId: "facultyId",
+  departmentId: "departmentId",
+  programId: "programId",
+  createdByUserId: "createdByUserId",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var ProgramScalarFieldEnum = {
+  id: "id",
+  title: "title",
+  shortTitle: "shortTitle",
+  description: "description",
+  duration: "duration",
+  credits: "credits",
+  cost: "cost",
+  institutionId: "institutionId",
+  departmentId: "departmentId",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var RoutineScalarFieldEnum = {
+  id: "id",
+  name: "name",
+  description: "description",
+  version: "version",
+  scheduleId: "scheduleId",
+  courseRegistrationId: "courseRegistrationId",
+  classRoomId: "classRoomId",
+  institutionId: "institutionId",
+  departmentId: "departmentId",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var ScheduleScalarFieldEnum = {
+  id: "id",
+  name: "name",
+  description: "description",
+  semesterId: "semesterId",
+  institutionId: "institutionId",
+  departmentId: "departmentId",
+  startTime: "startTime",
+  endTime: "endTime",
+  status: "status",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var SectionScalarFieldEnum = {
+  id: "id",
+  name: "name",
+  description: "description",
+  sectionCapacity: "sectionCapacity",
+  institutionId: "institutionId",
+  departmentId: "departmentId",
+  semesterId: "semesterId",
+  batchId: "batchId",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var SemesterScalarFieldEnum = {
+  id: "id",
+  name: "name",
+  startDate: "startDate",
+  endDate: "endDate",
+  institutionId: "institutionId"
+};
+var StudentApplicationProfileScalarFieldEnum = {
+  id: "id",
+  studentUserId: "studentUserId",
+  headline: "headline",
+  about: "about",
+  documentUrls: "documentUrls",
+  academicRecords: "academicRecords",
+  isComplete: "isComplete",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var StudentAdmissionApplicationScalarFieldEnum = {
+  id: "id",
+  coverLetter: "coverLetter",
+  status: "status",
+  institutionResponse: "institutionResponse",
+  reviewedAt: "reviewedAt",
+  appliedAt: "appliedAt",
+  postingId: "postingId",
+  studentUserId: "studentUserId",
+  reviewerUserId: "reviewerUserId",
+  studentProfileId: "studentProfileId",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var StudentProfileScalarFieldEnum = {
+  id: "id",
+  studentsId: "studentsId",
+  bio: "bio",
+  institutionId: "institutionId",
+  departmentId: "departmentId",
+  userId: "userId",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var InstitutionSubscriptionScalarFieldEnum = {
+  id: "id",
+  institutionId: "institutionId",
+  sourceApplicationId: "sourceApplicationId",
+  plan: "plan",
+  status: "status",
+  amount: "amount",
+  currency: "currency",
+  monthsCovered: "monthsCovered",
+  startsAt: "startsAt",
+  endsAt: "endsAt",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var TeacherMarkScalarFieldEnum = {
+  id: "id",
+  courseRegistrationId: "courseRegistrationId",
+  teacherProfileId: "teacherProfileId",
+  institutionId: "institutionId",
+  departmentId: "departmentId",
+  labReport: "labReport",
+  labTask: "labTask",
+  project: "project",
+  projectReport: "projectReport",
+  presentation: "presentation",
+  labEvaluation: "labEvaluation",
+  viva: "viva",
+  quiz1: "quiz1",
+  quiz2: "quiz2",
+  quiz3: "quiz3",
+  assignment: "assignment",
+  midterm: "midterm",
+  finalExam: "finalExam",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var TeacherJobApplicationScalarFieldEnum = {
+  id: "id",
+  coverLetter: "coverLetter",
+  status: "status",
+  institutionResponse: "institutionResponse",
+  reviewedAt: "reviewedAt",
+  appliedAt: "appliedAt",
+  postingId: "postingId",
+  teacherUserId: "teacherUserId",
+  reviewerUserId: "reviewerUserId",
+  teacherProfileId: "teacherProfileId",
+  institutionId: "institutionId",
+  departmentId: "departmentId",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var TeacherClassworkScalarFieldEnum = {
+  id: "id",
+  title: "title",
+  content: "content",
+  type: "type",
+  dueAt: "dueAt",
+  sectionId: "sectionId",
+  teacherProfileId: "teacherProfileId",
+  institutionId: "institutionId",
+  departmentId: "departmentId",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var StudentClassworkSubmissionScalarFieldEnum = {
+  id: "id",
+  classworkId: "classworkId",
+  studentProfileId: "studentProfileId",
+  responseText: "responseText",
+  attachmentUrl: "attachmentUrl",
+  attachmentName: "attachmentName",
+  submittedAt: "submittedAt",
+  institutionId: "institutionId",
+  departmentId: "departmentId",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var SectionCourseTeacherAssignmentScalarFieldEnum = {
+  id: "id",
+  sectionId: "sectionId",
+  courseId: "courseId",
+  teacherProfileId: "teacherProfileId",
+  institutionId: "institutionId",
+  departmentId: "departmentId",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var TeacherApplicationProfileScalarFieldEnum = {
+  id: "id",
+  teacherUserId: "teacherUserId",
+  headline: "headline",
+  about: "about",
+  resumeUrl: "resumeUrl",
+  portfolioUrl: "portfolioUrl",
+  skills: "skills",
+  certifications: "certifications",
+  academicRecords: "academicRecords",
+  experiences: "experiences",
+  isComplete: "isComplete",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var TeacherProfileScalarFieldEnum = {
+  id: "id",
+  teacherInitial: "teacherInitial",
+  teachersId: "teachersId",
+  designation: "designation",
+  bio: "bio",
+  institutionId: "institutionId",
+  departmentId: "departmentId",
+  userId: "userId",
+  createdAt: "createdAt",
+  updatedAt: "updatedAt"
+};
+var SortOrder = {
+  asc: "asc",
+  desc: "desc"
+};
+var NullableJsonNullValueInput = {
+  DbNull: DbNull2,
+  JsonNull: JsonNull2
+};
+var JsonNullValueInput = {
+  JsonNull: JsonNull2
+};
+var QueryMode = {
+  default: "default",
+  insensitive: "insensitive"
+};
+var NullsOrder = {
+  first: "first",
+  last: "last"
+};
+var JsonNullValueFilter = {
+  DbNull: DbNull2,
+  JsonNull: JsonNull2,
+  AnyNull: AnyNull2
+};
 var defineExtension = runtime2.Extensions.defineExtension;
 
 // src/generated/prisma/client.ts
@@ -8104,18 +8804,18 @@ var SUBSCRIPTION_PLAN_CONFIG = {
   YEARLY: { months: 12, amount: 5600, label: "Yearly" }
 };
 function getFrontendBaseUrl() {
-  const raw2 = process.env.FRONTEND_PUBLIC_URL?.trim() || process.env.NEXT_PUBLIC_FRONTEND_URL?.trim() || DEFAULT_FRONTEND_BASE;
-  return raw2.replace(/\/$/, "");
+  const raw3 = process.env.FRONTEND_PUBLIC_URL?.trim() || process.env.NEXT_PUBLIC_FRONTEND_URL?.trim() || DEFAULT_FRONTEND_BASE;
+  return raw3.replace(/\/$/, "");
 }
 function getBackendBaseUrl() {
-  const raw2 = process.env.BACKEND_PUBLIC_URL?.trim() || process.env.BASE_URL?.trim();
-  if (!raw2) {
+  const raw3 = process.env.BACKEND_PUBLIC_URL?.trim() || process.env.BASE_URL?.trim();
+  if (!raw3) {
     throw createHttpError8(
       500,
       "Backend public URL is not configured. Set BACKEND_PUBLIC_URL in environment."
     );
   }
-  return raw2.replace(/\/$/, "");
+  return raw3.replace(/\/$/, "");
 }
 function getSslCommerzBaseUrl() {
   const envBaseUrl = process.env.SSLCOMMERZ_BASE_URL?.trim().replace(/\/$/, "");
@@ -9371,18 +10071,18 @@ var SUBSCRIPTION_PLAN_CONFIG2 = {
   YEARLY: { months: 12, amount: 5600, originalAmount: 6e3, label: "Yearly" }
 };
 function getFrontendBaseUrl2() {
-  const raw2 = process.env.FRONTEND_PUBLIC_URL?.trim() || process.env.NEXT_PUBLIC_FRONTEND_URL?.trim() || DEFAULT_FRONTEND_BASE2;
-  return raw2.replace(/\/$/, "");
+  const raw3 = process.env.FRONTEND_PUBLIC_URL?.trim() || process.env.NEXT_PUBLIC_FRONTEND_URL?.trim() || DEFAULT_FRONTEND_BASE2;
+  return raw3.replace(/\/$/, "");
 }
 function getBackendBaseUrl2() {
-  const raw2 = process.env.BACKEND_PUBLIC_URL?.trim() || process.env.BASE_URL?.trim();
-  if (!raw2) {
+  const raw3 = process.env.BACKEND_PUBLIC_URL?.trim() || process.env.BASE_URL?.trim();
+  if (!raw3) {
     throw createHttpError9(
       500,
       "Backend public URL is not configured. Set BACKEND_PUBLIC_URL in environment."
     );
   }
-  return raw2.replace(/\/$/, "");
+  return raw3.replace(/\/$/, "");
 }
 function getSslCommerzBaseUrl2() {
   const envBaseUrl = process.env.SSLCOMMERZ_BASE_URL?.trim().replace(/\/$/, "");
@@ -11798,19 +12498,19 @@ var PostingService = {
 
 // src/app/module/posting/posting.controller.ts
 var readLimit = (value) => {
-  let raw2;
+  let raw3;
   if (Array.isArray(value)) {
     const first = value[0];
-    raw2 = typeof first === "string" ? first : void 0;
+    raw3 = typeof first === "string" ? first : void 0;
   } else if (typeof value === "string") {
-    raw2 = value;
+    raw3 = value;
   }
-  const parsed = raw2 ? Number(raw2) : Number.NaN;
+  const parsed = raw3 ? Number(raw3) : Number.NaN;
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 50;
 };
 var readPositiveInt = (value) => {
-  const raw2 = readQueryValue7(value);
-  const parsed = raw2 ? Number(raw2) : Number.NaN;
+  const raw3 = readQueryValue7(value);
+  const parsed = raw3 ? Number(raw3) : Number.NaN;
   if (!Number.isFinite(parsed) || parsed <= 0) {
     return void 0;
   }
@@ -16294,8 +16994,20 @@ var listAdmins = async (query) => {
   const skip = (page - 1) * pageSize;
   const where = query.search ? {
     OR: [
-      { user: { name: { contains: query.search, mode: "insensitive" } } },
-      { user: { email: { contains: query.search, mode: "insensitive" } } }
+      {
+        user: {
+          is: {
+            name: { contains: query.search, mode: prismaNamespace_exports.QueryMode.insensitive }
+          }
+        }
+      },
+      {
+        user: {
+          is: {
+            email: { contains: query.search, mode: prismaNamespace_exports.QueryMode.insensitive }
+          }
+        }
+      }
     ]
   } : {};
   const [items, total] = await Promise.all([

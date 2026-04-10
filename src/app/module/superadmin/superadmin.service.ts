@@ -1,4 +1,5 @@
 import { prisma } from "../../lib/prisma";
+import { Prisma } from "../../../generated/prisma/client";
 
 // Helper function for HTTP errors
 function createHttpError(statusCode: number, message: string) {
@@ -91,11 +92,23 @@ const listAdmins = async (query: PaginationQuery): Promise<PaginatedResponse<Adm
   const pageSize = normalizePageSize(query.pageSize, 50);
   const skip = (page - 1) * pageSize;
 
-  const where = query.search
+  const where: Prisma.AdminProfileWhereInput = query.search
     ? {
         OR: [
-          { user: { name: { contains: query.search, mode: "insensitive" } } },
-          { user: { email: { contains: query.search, mode: "insensitive" } } },
+          {
+            user: {
+              is: {
+                name: { contains: query.search, mode: Prisma.QueryMode.insensitive },
+              },
+            },
+          },
+          {
+            user: {
+              is: {
+                email: { contains: query.search, mode: Prisma.QueryMode.insensitive },
+              },
+            },
+          },
         ],
       }
     : {};
