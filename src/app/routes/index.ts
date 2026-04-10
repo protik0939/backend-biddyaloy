@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { AIRouter } from "../module/ai/ai.route";
 import { ClassroomRouter } from "../module/classroom/classroom.route";
 import { DepartmentRouter } from "../module/department/department.route";
 import { AuthRoutes } from "../module/auth/auth.route";
@@ -11,9 +12,10 @@ import { PostingRouter } from "../module/posting/posting.route";
 import { RoutineRouter } from "../module/routine/routine.route";
 import { StudentRouter } from "../module/student/student.route";
 import { TeacherRouter } from "../module/teacher/teacher.route";
-
+import { SuperAdminRouter } from "../module/superadmin/superadmin.route";
 const router = Router();
 
+router.use("/ai", AIRouter);
 router.use("/auth", AuthRoutes);
 router.use("/classrooms", ClassroomRouter);
 router.use("/department", DepartmentRouter);
@@ -24,6 +26,7 @@ router.use("/institution-admin", InstitutionAdminRouter);
 router.use("/notices", NoticeRouter);
 router.use("/postings", PostingRouter);
 router.use("/routines", RoutineRouter);
+router.use("/superadmin", SuperAdminRouter);
 router.use("/teacher", TeacherRouter);
 router.use("/student", StudentRouter);
 

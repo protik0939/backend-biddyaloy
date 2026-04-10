@@ -47,6 +47,36 @@ const listPublicPostingSchema = z.object({
       .string("limit must be a number")
       .regex(/^\d+$/, "limit must be a positive integer")
       .optional(),
+    search: z.string("search must be a string").trim().max(120).optional(),
+    location: z.string("location must be a string").trim().max(120).optional(),
+    sort: z.enum(["newest", "oldest", "title_asc", "title_desc"]).optional(),
+    page: z.string("page must be a number").regex(/^\d+$/, "page must be a positive integer").optional(),
+    pageSize: z
+      .string("pageSize must be a number")
+      .regex(/^\d+$/, "pageSize must be a positive integer")
+      .optional(),
+  }),
+});
+
+const listPublicExplorePostingSchema = z.object({
+  query: z.object({
+    type: z.enum(["teacher", "student"]),
+    search: z.string("search must be a string").trim().max(120).optional(),
+    location: z.string("location must be a string").trim().max(120).optional(),
+    department: z.string("department must be a string").trim().max(120).optional(),
+    sort: z.enum(["newest", "oldest", "title_asc", "title_desc"]).optional(),
+    page: z.string("page must be a number").regex(/^\d+$/, "page must be a positive integer").optional(),
+    pageSize: z
+      .string("pageSize must be a number")
+      .regex(/^\d+$/, "pageSize must be a positive integer")
+      .optional(),
+  }),
+});
+
+const publicPostingDetailsParamsSchema = z.object({
+  params: z.object({
+    postingType: z.enum(["teacher", "student"]),
+    postingId: uuidSchema,
   }),
 });
 
@@ -56,4 +86,6 @@ export const PostingValidation = {
   postingIdParamSchema,
   listPublicPostingSchema,
   listManagedPostingSchema,
+  listPublicExplorePostingSchema,
+  publicPostingDetailsParamsSchema,
 };

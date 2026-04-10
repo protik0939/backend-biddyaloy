@@ -28,6 +28,9 @@ const cookieAttributes = isProduction
       path: "/",
     };
 
+  const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim();
+  const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
+
 function getFrontendResetPasswordUrl(token: string): string | undefined {
   const frontendBase = process.env.FRONTEND_PUBLIC_URL;
   if (!frontendBase) {
@@ -69,6 +72,16 @@ export const auth = betterAuth({
       });
     },
   },
+  ...(googleClientId && googleClientSecret
+    ? {
+        socialProviders: {
+          google: {
+            clientId: googleClientId,
+            clientSecret: googleClientSecret,
+          },
+        },
+      }
+    : {}),
   user: {
     additionalFields: {
       bio: {

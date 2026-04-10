@@ -24,3 +24,17 @@ export interface IPostingProgramOptionItem {
   title: string;
   departmentId: string;
 }
+
+export type PublicPostingType = "teacher" | "student";
+
+export type PublicPostingSort = "newest" | "oldest" | "title_asc" | "title_desc";
+
+export interface IPublicPostingExploreQuery {
+  type: PublicPostingType;
+  search?: string;
+  location?: string;
+  department?: string;
+  sort?: PublicPostingSort;
+  page?: number;
+  pageSize?: number;
+}

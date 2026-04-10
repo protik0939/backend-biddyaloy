@@ -16,6 +16,17 @@ const readLimit = (value: unknown) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 50;
 };
 
+const readPositiveInt = (value: unknown) => {
+  const raw = readQueryValue(value);
+  const parsed = raw ? Number(raw) : Number.NaN;
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return undefined;
+  }
+
+  return parsed;
+};
+
 const readQueryValue = (value: unknown) => {
   if (Array.isArray(value)) {
     return typeof value[0] === "string" ? value[0] : undefined;
@@ -53,7 +64,14 @@ const createStudentAdmissionPost = catchAsync(async (req: Request, res: Response
 
 const listTeacherJobPostsPublic = catchAsync(async (req: Request, res: Response) => {
   const limit = readLimit(req.query.limit);
-  const result = await PostingService.listTeacherJobPostsPublic(limit);
+  const result = await PostingService.listTeacherJobPostsPublic({
+    limit,
+    search: readQueryValue(req.query.search),
+    location: readQueryValue(req.query.location),
+    sort: readQueryValue(req.query.sort),
+    page: readPositiveInt(req.query.page),
+    pageSize: readPositiveInt(req.query.pageSize),
+  });
 
   sendResponse(res, {
     httpStatusCode: 200,
@@ -65,7 +83,14 @@ const listTeacherJobPostsPublic = catchAsync(async (req: Request, res: Response)
 
 const listStudentAdmissionPostsPublic = catchAsync(async (req: Request, res: Response) => {
   const limit = readLimit(req.query.limit);
-  const result = await PostingService.listStudentAdmissionPostsPublic(limit);
+  const result = await PostingService.listStudentAdmissionPostsPublic({
+    limit,
+    search: readQueryValue(req.query.search),
+    location: readQueryValue(req.query.location),
+    sort: readQueryValue(req.query.sort),
+    page: readPositiveInt(req.query.page),
+    pageSize: readPositiveInt(req.query.pageSize),
+  });
 
   sendResponse(res, {
     httpStatusCode: 200,
@@ -83,6 +108,39 @@ const getPostingOptions = catchAsync(async (req: Request, res: Response) => {
     httpStatusCode: 200,
     success: true,
     message: "Posting options fetched successfully",
+    data: result,
+  });
+});
+
+const listPublicExplorePostings = catchAsync(async (req: Request, res: Response) => {
+  const result = await PostingService.listPublicExplorePostings({
+    type: readQueryValue(req.query.type) === "student" ? "student" : "teacher",
+    search: readQueryValue(req.query.search),
+    location: readQueryValue(req.query.location),
+    department: readQueryValue(req.query.department),
+    sort: readQueryValue(req.query.sort) as "newest" | "oldest" | "title_asc" | "title_desc" | undefined,
+    page: readPositiveInt(req.query.page),
+    pageSize: readPositiveInt(req.query.pageSize),
+  });
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Public postings fetched successfully",
+    data: result,
+  });
+});
+
+const getPublicPostingDetails = catchAsync(async (req: Request, res: Response) => {
+  const result = await PostingService.getPublicPostingDetails(
+    readParam(req.params.postingType) === "student" ? "student" : "teacher",
+    readParam(req.params.postingId),
+  );
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Public posting details fetched successfully",
     data: result,
   });
 });
@@ -165,6 +223,8 @@ export const PostingController = {
   listTeacherJobPostsPublic,
   listStudentAdmissionPostsPublic,
   getPostingOptions,
+  listPublicExplorePostings,
+  getPublicPostingDetails,
   listTeacherJobPostsManaged,
   listStudentAdmissionPostsManaged,
   updateTeacherJobPost,

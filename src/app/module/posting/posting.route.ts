@@ -7,6 +7,18 @@ import { PostingValidation } from "./posting.validation";
 const router = Router();
 
 router.get(
+  "/public/explore",
+  validateRequest(PostingValidation.listPublicExplorePostingSchema),
+  PostingController.listPublicExplorePostings,
+);
+
+router.get(
+  "/public/:postingType/:postingId",
+  validateRequest(PostingValidation.publicPostingDetailsParamsSchema),
+  PostingController.getPublicPostingDetails,
+);
+
+router.get(
   "/teacher/public",
   validateRequest(PostingValidation.listPublicPostingSchema),
   PostingController.listTeacherJobPostsPublic,
