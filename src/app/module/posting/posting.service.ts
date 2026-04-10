@@ -1,4 +1,5 @@
 import { AdminRole } from "../../../generated/prisma/enums";
+import { Prisma } from "../../../generated/prisma/client";
 import { prisma } from "../../lib/prisma";
 import {
   ICreatePostingPayload,
@@ -88,7 +89,12 @@ function normalizePublicSort(sort?: string): PublicPostingSort {
   }
 }
 
-function getPublicPostingOrderBy(sort: PublicPostingSort) {
+type PublicPostingOrderBy = {
+  createdAt?: Prisma.SortOrder;
+  title?: Prisma.SortOrder;
+};
+
+function getPublicPostingOrderBy(sort: PublicPostingSort): PublicPostingOrderBy {
   if (sort === "oldest") {
     return { createdAt: "asc" };
   }
@@ -681,9 +687,7 @@ const listTeacherJobPostsPublic = async (options: ListPublicPostingOptions = {})
   try {
     posts = await prisma.teacherJobPost.findMany({
       where: where as never,
-      orderBy: {
-        ...getPublicPostingOrderBy(sort),
-      },
+      orderBy: getPublicPostingOrderBy(sort) as Prisma.TeacherJobPostOrderByWithRelationInput,
       skip: (page - 1) * pageSize,
       take: pageSize,
     });
@@ -713,9 +717,7 @@ const listStudentAdmissionPostsPublic = async (options: ListPublicPostingOptions
   try {
     posts = await prisma.studentAdmissionPost.findMany({
       where: where as never,
-      orderBy: {
-        ...getPublicPostingOrderBy(sort),
-      },
+      orderBy: getPublicPostingOrderBy(sort) as Prisma.StudentAdmissionPostOrderByWithRelationInput,
       skip: (page - 1) * pageSize,
       take: pageSize,
     });

@@ -12201,9 +12201,7 @@ var listTeacherJobPostsPublic = async (options = {}) => {
   try {
     posts = await prisma.teacherJobPost.findMany({
       where,
-      orderBy: {
-        ...getPublicPostingOrderBy(sort)
-      },
+      orderBy: getPublicPostingOrderBy(sort),
       skip: (page - 1) * pageSize,
       take: pageSize
     });
@@ -12227,9 +12225,7 @@ var listStudentAdmissionPostsPublic = async (options = {}) => {
   try {
     posts = await prisma.studentAdmissionPost.findMany({
       where,
-      orderBy: {
-        ...getPublicPostingOrderBy(sort)
-      },
+      orderBy: getPublicPostingOrderBy(sort),
       skip: (page - 1) * pageSize,
       take: pageSize
     });
