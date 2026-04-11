@@ -1787,6 +1787,7 @@ function isLocalhostUrl(value) {
 }
 function resolveAuthBaseUrl() {
   const candidates = [
+    normalizeUrlCandidate(process.env.FRONTEND_PUBLIC_URL),
     normalizeUrlCandidate(process.env.BACKEND_PUBLIC_URL),
     normalizeUrlCandidate(process.env.BETTER_AUTH_URL),
     process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : void 0
@@ -1894,7 +1895,8 @@ var auth = betterAuth({
       },
       role: {
         type: "string",
-        required: true
+        required: false,
+        defaultValue: "UNAUTHENTICATED"
       }
     }
   }

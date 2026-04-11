@@ -28,6 +28,7 @@ function isLocalhostUrl(value: string): boolean {
 
 function resolveAuthBaseUrl(): string | undefined {
   const candidates = [
+    normalizeUrlCandidate(process.env.FRONTEND_PUBLIC_URL),
     normalizeUrlCandidate(process.env.BACKEND_PUBLIC_URL),
     normalizeUrlCandidate(process.env.BETTER_AUTH_URL),
     process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined,
@@ -149,10 +150,11 @@ export const auth = betterAuth({
         required: true,
         defaultValue: AccountStatus.PENDING,
       },
-      role: {
-        type: "string",
-        required: true,
-      },
+        role: {
+          type: "string",
+          required: false,
+          defaultValue: "UNAUTHENTICATED",
+        },
     },
   },
 });
