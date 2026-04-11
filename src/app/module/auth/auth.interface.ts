@@ -49,6 +49,10 @@ interface IReviewInstitutionLeaveRequestPayload {
   status: "APPROVED" | "REJECTED";
 }
 
+interface ISelectRolePayload {
+  role: "ADMIN" | "TEACHER" | "STUDENT";
+}
+
 export {
   IRegisterUser,
   ILoginUser,
@@ -60,4 +64,5 @@ export {
   IRequestInstitutionLeavePayload,
   IListInstitutionLeaveRequestsQuery,
   IReviewInstitutionLeaveRequestPayload,
+  ISelectRolePayload,
 };

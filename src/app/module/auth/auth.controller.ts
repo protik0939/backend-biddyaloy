@@ -55,6 +55,30 @@ const getAccessStatus = catchAsync(async (_req: Request, res: Response) => {
   });
 });
 
+const getSessionInfo = catchAsync(async (_req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await AuthService.getSessionInfo(user.id);
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Session info fetched successfully",
+    data: result,
+  });
+});
+
+const selectRole = catchAsync(async (req: Request, res: Response) => {
+  const user = res.locals.authUser as { id: string };
+  const result = await AuthService.selectRole(user.id, req.body);
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Role selected successfully",
+    data: result,
+  });
+});
+
 const getOtpStatus = catchAsync(async (req: Request, res: Response) => {
   const payload = req.body;
   const result = await AuthService.getAccountVerificationOtpStatus(payload);
@@ -174,6 +198,8 @@ export const AuthController = {
   registerUser,
   loginUser,
   getAccessStatus,
+  getSessionInfo,
+  selectRole,
   getCurrentUserProfile,
   getOtpStatus,
   resendOtp,

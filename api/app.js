@@ -1771,7 +1771,33 @@ function buildPasswordResetEmail(payload) {
 
 // src/app/lib/auth.ts
 var isProduction = process.env.NODE_ENV === "production";
-var resolvedBaseURL = process.env.BACKEND_PUBLIC_URL ?? process.env.BETTER_AUTH_URL ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : void 0);
+function normalizeUrlCandidate(value) {
+  if (!value) {
+    return void 0;
+  }
+  return value.trim().replace(/\/$/, "");
+}
+function isLocalhostUrl(value) {
+  try {
+    const parsed = new URL(value);
+    return parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+  } catch {
+    return false;
+  }
+}
+function resolveAuthBaseUrl() {
+  const candidates = [
+    normalizeUrlCandidate(process.env.BACKEND_PUBLIC_URL),
+    normalizeUrlCandidate(process.env.BETTER_AUTH_URL),
+    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : void 0
+  ].filter((value) => Boolean(value));
+  if (!isProduction) {
+    return candidates[0];
+  }
+  const firstNonLocal = candidates.find((candidate) => !isLocalhostUrl(candidate));
+  return firstNonLocal ?? candidates[0];
+}
+var resolvedBaseURL = resolveAuthBaseUrl();
 var cookieAttributes = isProduction ? {
   sameSite: "none",
   secure: true,
@@ -1796,6 +1822,7 @@ function getFrontendResetPasswordUrl(token) {
 var auth = betterAuth({
   secret: process.env.AUTH_SECRET ?? process.env.BETTER_AUTH_SECRET,
   baseURL: resolvedBaseURL,
+  basePath: "/api/auth",
   trustedOrigins: buildTrustedOrigins(),
   useSecureCookies: isProduction,
   defaultCookieAttributes: cookieAttributes,
@@ -7032,6 +7059,102 @@ var ApplyForInstitutionValidationSchema = {
 // src/app/module/auth/auth.route.ts
 import { Router as Router4 } from "express";
 
+// src/app/middleware/requireSession.ts
+var SESSION_COOKIE_KEYS2 = [
+  "__Secure-better-auth.session_token",
+  "better-auth.session_token",
+  "better-auth.session-token",
+  "session_token",
+  "auth_token"
+];
+function getCookieMap2(cookieHeader) {
+  const cookieMap = /* @__PURE__ */ new Map();
+  if (!cookieHeader) {
+    return cookieMap;
+  }
+  const parts = cookieHeader.split(";");
+  for (const part of parts) {
+    const [rawKey, ...rawValueParts] = part.trim().split("=");
+    if (!rawKey) {
+      continue;
+    }
+    const value = rawValueParts.join("=");
+    cookieMap.set(rawKey, decodeURIComponent(value ?? ""));
+  }
+  return cookieMap;
+}
+function getSessionTokenFromRequest2(req) {
+  const authorizationHeader = req.headers.authorization;
+  if (authorizationHeader?.toLowerCase().startsWith("bearer ")) {
+    const bearerToken = authorizationHeader.slice("bearer ".length).trim();
+    if (bearerToken) {
+      return bearerToken;
+    }
+  }
+  const cookieHeader = req.headers.cookie;
+  const cookieMap = getCookieMap2(cookieHeader);
+  for (const key of SESSION_COOKIE_KEYS2) {
+    const token = cookieMap.get(key);
+    if (token) {
+      return token;
+    }
+  }
+  return void 0;
+}
+async function resolveUserFromSessionToken2(sessionToken) {
+  const session = await prisma.session.findUnique({
+    where: {
+      token: sessionToken
+    },
+    select: {
+      expiresAt: true,
+      user: {
+        select: {
+          id: true,
+          role: true,
+          accountStatus: true
+        }
+      }
+    }
+  });
+  if (!session?.user) {
+    return null;
+  }
+  if (session.expiresAt.getTime() <= Date.now()) {
+    return null;
+  }
+  return {
+    id: session.user.id,
+    role: session.user.role,
+    accountStatus: session.user.accountStatus
+  };
+}
+var requireSession = () => {
+  return async (req, res, next) => {
+    try {
+      const sessionToken = getSessionTokenFromRequest2(req);
+      if (!sessionToken) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized"
+        });
+      }
+      const user = await resolveUserFromSessionToken2(sessionToken);
+      if (!user) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized"
+        });
+      }
+      req.authUser = user;
+      res.locals.authUser = user;
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
+};
+
 // src/app/module/auth/authOtp.service.ts
 import { createHash, randomInt } from "crypto";
 
@@ -7638,6 +7761,83 @@ var changePassword = async (payload, cookieHeader) => {
     user: result.user
   };
 };
+var ROLE_SELECTION_ALLOWED = /* @__PURE__ */ new Set(["ADMIN", "TEACHER", "STUDENT"]);
+var KNOWN_UI_ROLES = /* @__PURE__ */ new Set(["SUPERADMIN", "ADMIN", "FACULTY", "DEPARTMENT", "TEACHER", "STUDENT"]);
+var getSessionInfo = async (userId) => {
+  const userRecord = await prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      accountStatus: true,
+      image: true
+    }
+  });
+  if (!userRecord) {
+    throw createHttpError5(404, "User account not found");
+  }
+  const normalizedRole = userRecord.role?.toUpperCase?.() ?? "";
+  return {
+    id: userRecord.id,
+    name: userRecord.name,
+    email: userRecord.email,
+    image: userRecord.image,
+    role: userRecord.role,
+    accountStatus: userRecord.accountStatus,
+    needsRoleSelection: !KNOWN_UI_ROLES.has(normalizedRole)
+  };
+};
+var selectRole = async (userId, payload) => {
+  const requestedRole = payload.role?.toUpperCase();
+  if (!ROLE_SELECTION_ALLOWED.has(requestedRole)) {
+    throw createHttpError5(400, "Only ADMIN, TEACHER, or STUDENT can be selected");
+  }
+  const current = await prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      role: true,
+      accountStatus: true
+    }
+  });
+  if (!current) {
+    throw createHttpError5(404, "User account not found");
+  }
+  const normalizedCurrentRole = current.role?.toUpperCase?.() ?? "";
+  if (KNOWN_UI_ROLES.has(normalizedCurrentRole)) {
+    throw createHttpError5(400, "Role is already configured for this account");
+  }
+  const updatedUser = await prisma.user.update({
+    where: {
+      id: userId
+    },
+    data: {
+      role: requestedRole,
+      accountStatus: current.accountStatus === AccountStatus.PENDING ? AccountStatus.ACTIVE : current.accountStatus
+    },
+    select: {
+      id: true,
+      role: true,
+      accountStatus: true,
+      name: true,
+      email: true,
+      image: true
+    }
+  });
+  return {
+    id: updatedUser.id,
+    role: updatedUser.role,
+    accountStatus: updatedUser.accountStatus,
+    name: updatedUser.name,
+    email: updatedUser.email,
+    image: updatedUser.image
+  };
+};
 function createHttpError5(statusCode, message) {
   const error = new Error(message);
   error.statusCode = statusCode;
@@ -7815,6 +8015,8 @@ var AuthService = {
   requestPasswordReset,
   resetPassword,
   changePassword,
+  getSessionInfo,
+  selectRole,
   requestInstitutionLeave,
   listInstitutionLeaveRequestsForSuperAdmin,
   reviewInstitutionLeaveRequestBySuperAdmin
@@ -7862,6 +8064,26 @@ var getAccessStatus = catchAsync(async (_req, res) => {
       userId: user.id,
       role: user.role
     }
+  });
+});
+var getSessionInfo2 = catchAsync(async (_req, res) => {
+  const user = res.locals.authUser;
+  const result = await AuthService.getSessionInfo(user.id);
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Session info fetched successfully",
+    data: result
+  });
+});
+var selectRole2 = catchAsync(async (req, res) => {
+  const user = res.locals.authUser;
+  const result = await AuthService.selectRole(user.id, req.body);
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Role selected successfully",
+    data: result
   });
 });
 var getOtpStatus = catchAsync(async (req, res) => {
@@ -7964,6 +8186,8 @@ var AuthController = {
   registerUser: registerUser2,
   loginUser: loginUser2,
   getAccessStatus,
+  getSessionInfo: getSessionInfo2,
+  selectRole: selectRole2,
   getCurrentUserProfile: getCurrentUserProfile2,
   getOtpStatus,
   resendOtp,
@@ -8073,6 +8297,13 @@ var reviewInstitutionLeaveRequestSchema = z5.object({
     status: z5.enum(["APPROVED", "REJECTED"])
   })
 });
+var selectRoleSchema = z5.object({
+  body: z5.object({
+    role: z5.enum([UserRole.ADMIN, UserRole.TEACHER, UserRole.STUDENT], {
+      message: `Invalid role. Must be one of: ${UserRole.ADMIN}, ${UserRole.TEACHER}, ${UserRole.STUDENT}`
+    })
+  })
+});
 var AuthValidation = {
   registerSchema,
   loginSchema,
@@ -8084,6 +8315,7 @@ var AuthValidation = {
   leaveInstitutionSchema,
   listInstitutionLeaveRequestsSchema,
   reviewInstitutionLeaveRequestSchema,
+  selectRoleSchema,
   verifyEmailSchema,
   refreshTokenSchema
 };
@@ -8151,6 +8383,17 @@ router4.get(
   "/me",
   requireSessionRole("SUPERADMIN", "ADMIN", "TEACHER", "STUDENT"),
   AuthController.getCurrentUserProfile
+);
+router4.get(
+  "/session-info",
+  requireSession(),
+  AuthController.getSessionInfo
+);
+router4.patch(
+  "/select-role",
+  requireSession(),
+  validateRequest(AuthValidation.selectRoleSchema),
+  AuthController.selectRole
 );
 var AuthRoutes = router4;
 

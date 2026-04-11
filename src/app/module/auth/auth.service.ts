@@ -11,6 +11,7 @@ import {
   IRequestInstitutionLeavePayload,
   IRegisterUser,
   IResetPasswordPayload,
+  ISelectRolePayload,
   IVerifyAuthOtpPayload,
 } from "./auth.interface";
 import { AuthOtpService } from "./authOtp.service";
@@ -436,6 +437,95 @@ const changePassword = async (payload: IChangePasswordPayload, cookieHeader?: st
   };
 };
 
+const ROLE_SELECTION_ALLOWED = new Set(["ADMIN", "TEACHER", "STUDENT"]);
+const KNOWN_UI_ROLES = new Set(["SUPERADMIN", "ADMIN", "FACULTY", "DEPARTMENT", "TEACHER", "STUDENT"]);
+
+const getSessionInfo = async (userId: string) => {
+  const userRecord = await prisma.user.findUnique({
+    where: {
+      id: userId,
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      accountStatus: true,
+      image: true,
+    },
+  });
+
+  if (!userRecord) {
+    throw createHttpError(404, "User account not found");
+  }
+
+  const normalizedRole = userRecord.role?.toUpperCase?.() ?? "";
+
+  return {
+    id: userRecord.id,
+    name: userRecord.name,
+    email: userRecord.email,
+    image: userRecord.image,
+    role: userRecord.role,
+    accountStatus: userRecord.accountStatus,
+    needsRoleSelection: !KNOWN_UI_ROLES.has(normalizedRole),
+  };
+};
+
+const selectRole = async (userId: string, payload: ISelectRolePayload) => {
+  const requestedRole = payload.role?.toUpperCase();
+
+  if (!ROLE_SELECTION_ALLOWED.has(requestedRole)) {
+    throw createHttpError(400, "Only ADMIN, TEACHER, or STUDENT can be selected");
+  }
+
+  const current = await prisma.user.findUnique({
+    where: {
+      id: userId,
+    },
+    select: {
+      role: true,
+      accountStatus: true,
+    },
+  });
+
+  if (!current) {
+    throw createHttpError(404, "User account not found");
+  }
+
+  const normalizedCurrentRole = current.role?.toUpperCase?.() ?? "";
+  if (KNOWN_UI_ROLES.has(normalizedCurrentRole)) {
+    throw createHttpError(400, "Role is already configured for this account");
+  }
+
+  const updatedUser = await prisma.user.update({
+    where: {
+      id: userId,
+    },
+    data: {
+      role: requestedRole,
+      accountStatus: current.accountStatus === AccountStatus.PENDING ? AccountStatus.ACTIVE : current.accountStatus,
+    },
+    select: {
+      id: true,
+      role: true,
+      accountStatus: true,
+      name: true,
+      email: true,
+      image: true,
+    },
+  });
+
+  return {
+    id: updatedUser.id,
+    role: updatedUser.role,
+    accountStatus: updatedUser.accountStatus,
+    name: updatedUser.name,
+    email: updatedUser.email,
+    image: updatedUser.image,
+  };
+};
+
 function createHttpError(statusCode: number, message: string) {
   const error = new Error(message) as Error & { statusCode?: number };
   error.statusCode = statusCode;
@@ -645,6 +735,8 @@ export const AuthService = {
   requestPasswordReset,
   resetPassword,
   changePassword,
+  getSessionInfo,
+  selectRole,
   requestInstitutionLeave,
   listInstitutionLeaveRequestsForSuperAdmin,
   reviewInstitutionLeaveRequestBySuperAdmin,

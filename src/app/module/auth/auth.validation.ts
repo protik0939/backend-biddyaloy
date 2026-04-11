@@ -149,6 +149,14 @@ const reviewInstitutionLeaveRequestSchema = z.object({
   }),
 });
 
+const selectRoleSchema = z.object({
+  body: z.object({
+    role: z.enum([UserRole.ADMIN, UserRole.TEACHER, UserRole.STUDENT], {
+      message: `Invalid role. Must be one of: ${UserRole.ADMIN}, ${UserRole.TEACHER}, ${UserRole.STUDENT}`,
+    }),
+  }),
+});
+
 export const AuthValidation = {
   registerSchema,
   loginSchema,
@@ -160,6 +168,7 @@ export const AuthValidation = {
   leaveInstitutionSchema,
   listInstitutionLeaveRequestsSchema,
   reviewInstitutionLeaveRequestSchema,
+  selectRoleSchema,
   verifyEmailSchema,
   refreshTokenSchema,
 };

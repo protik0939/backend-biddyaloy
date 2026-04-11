@@ -9,10 +9,39 @@ import { buildPasswordResetEmail } from "../shared/email/templates/passwordReset
 
 const isProduction = process.env.NODE_ENV === "production";
 
-const resolvedBaseURL =
-  process.env.BACKEND_PUBLIC_URL ??
-  process.env.BETTER_AUTH_URL ??
-  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined);
+function normalizeUrlCandidate(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  return value.trim().replace(/\/$/, "");
+}
+
+function isLocalhostUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+  } catch {
+    return false;
+  }
+}
+
+function resolveAuthBaseUrl(): string | undefined {
+  const candidates = [
+    normalizeUrlCandidate(process.env.BACKEND_PUBLIC_URL),
+    normalizeUrlCandidate(process.env.BETTER_AUTH_URL),
+    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined,
+  ].filter((value): value is string => Boolean(value));
+
+  if (!isProduction) {
+    return candidates[0];
+  }
+
+  const firstNonLocal = candidates.find((candidate) => !isLocalhostUrl(candidate));
+  return firstNonLocal ?? candidates[0];
+}
+
+const resolvedBaseURL = resolveAuthBaseUrl();
 
 const cookieAttributes = isProduction
   ? {
@@ -47,6 +76,7 @@ function getFrontendResetPasswordUrl(token: string): string | undefined {
 export const auth = betterAuth({
   secret: process.env.AUTH_SECRET ?? process.env.BETTER_AUTH_SECRET,
   baseURL: resolvedBaseURL,
+  basePath: "/api/auth",
   trustedOrigins: buildTrustedOrigins(),
   useSecureCookies: isProduction,
   defaultCookieAttributes: cookieAttributes,

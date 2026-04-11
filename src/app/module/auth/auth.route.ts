@@ -1,5 +1,6 @@
 import { ApplyForInstitutionValidationSchema } from './../apply/apply.validation';
 import { Router } from "express";
+import { requireSession } from "../../middleware/requireSession";
 import { requireSessionRole } from "../../middleware/requireSessionRole";
 import { AuthController } from "./auth.controller";
 import { AuthValidation } from "./auth.validation";
@@ -69,6 +70,19 @@ router.get(
 	"/me",
 	requireSessionRole("SUPERADMIN", "ADMIN", "TEACHER", "STUDENT"),
 	AuthController.getCurrentUserProfile,
+);
+
+router.get(
+	"/session-info",
+	requireSession(),
+	AuthController.getSessionInfo,
+);
+
+router.patch(
+	"/select-role",
+	requireSession(),
+	validateRequest(AuthValidation.selectRoleSchema),
+	AuthController.selectRole,
 );
 
 export const AuthRoutes = router;
