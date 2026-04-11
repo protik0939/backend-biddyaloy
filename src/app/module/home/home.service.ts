@@ -184,7 +184,7 @@ const faqs: HomeFaqItem[] = [
   },
 ];
 
-const buildBlogCard = (item: { id: string; postingType?: "teacher" | "student"; title: string; summary: string; createdAt: string }): HomeBlogCardItem => ({
+const buildBlogCard = (item: { id: string; postingType?: "teacher" | "student"; title: string; summary: string; createdAt: string | Date }): HomeBlogCardItem => ({
   title: item.title,
   excerpt: item.summary,
   href: `/explore/${item.postingType ?? "teacher"}/${item.id}`,
