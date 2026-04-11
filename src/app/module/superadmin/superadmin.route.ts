@@ -28,4 +28,10 @@ router.get(
   SuperAdminController.listTeachers,
 );
 
+router.get(
+  "/recent-highlights",
+  requireSessionRole("SUPERADMIN"),
+  SuperAdminController.listRecentHighlights,
+);
+
 export const SuperAdminRouter = router;

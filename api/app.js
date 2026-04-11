@@ -48,7 +48,7 @@ var notFound = (_req, res) => {
 };
 
 // src/app/routes/index.ts
-import { Router as Router15 } from "express";
+import { Router as Router16 } from "express";
 
 // src/app/module/ai/ai.route.ts
 import { Router } from "express";
@@ -8579,8 +8579,1023 @@ router5.post(
 );
 var FacultyProfileRouter = router5;
 
-// src/app/module/institute/institute.route.ts
+// src/app/module/home/home.route.ts
 import { Router as Router6 } from "express";
+
+// src/app/module/posting/posting.service.ts
+var DEFAULT_PUBLIC_PAGE_SIZE = 12;
+var MAX_PUBLIC_PAGE_SIZE = 40;
+function createHttpError7(statusCode, message) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+}
+function isMissingTableError(error) {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+  const maybeCode = error.code;
+  if (maybeCode === "P2021") {
+    return true;
+  }
+  const maybeMessage = error.message;
+  return typeof maybeMessage === "string" && maybeMessage.includes("does not exist");
+}
+function normalizeSearch3(search) {
+  const value = search?.trim();
+  return value || void 0;
+}
+function normalizePage(value) {
+  if (!value || !Number.isFinite(value) || value < 1) {
+    return 1;
+  }
+  return Math.floor(value);
+}
+function normalizePageSize(value) {
+  if (!value || !Number.isFinite(value) || value < 1) {
+    return DEFAULT_PUBLIC_PAGE_SIZE;
+  }
+  return Math.min(Math.floor(value), MAX_PUBLIC_PAGE_SIZE);
+}
+function normalizePublicSort(sort) {
+  switch (sort) {
+    case "oldest":
+      return "oldest";
+    case "title_asc":
+      return "title_asc";
+    case "title_desc":
+      return "title_desc";
+    default:
+      return "newest";
+  }
+}
+function getPublicPostingOrderBy(sort) {
+  if (sort === "oldest") {
+    return { createdAt: "asc" };
+  }
+  if (sort === "title_asc") {
+    return { title: "asc" };
+  }
+  if (sort === "title_desc") {
+    return { title: "desc" };
+  }
+  return { createdAt: "desc" };
+}
+function buildPublicPostingWhere(search, location, department) {
+  const normalizedSearch = normalizeSearch3(search);
+  const normalizedLocation = normalizeSearch3(location);
+  const normalizedDepartment = normalizeSearch3(department);
+  const where = {};
+  if (normalizedSearch) {
+    where.OR = [
+      { title: { contains: normalizedSearch, mode: "insensitive" } },
+      { summary: { contains: normalizedSearch, mode: "insensitive" } },
+      { location: { contains: normalizedSearch, mode: "insensitive" } },
+      { institution: { name: { contains: normalizedSearch, mode: "insensitive" } } },
+      { department: { fullName: { contains: normalizedSearch, mode: "insensitive" } } },
+      { program: { title: { contains: normalizedSearch, mode: "insensitive" } } }
+    ];
+  }
+  if (normalizedLocation) {
+    where.location = { contains: normalizedLocation, mode: "insensitive" };
+  }
+  if (normalizedDepartment) {
+    where.department = {
+      fullName: {
+        contains: normalizedDepartment,
+        mode: "insensitive"
+      }
+    };
+  }
+  return where;
+}
+function buildPostingMedia(institutionLogo) {
+  const fallbackBanner = "/biddyaloycover.webp";
+  const fallbackLogo = "/logo/BidyaloylogoIconOnly.svg";
+  return [institutionLogo, fallbackBanner, fallbackLogo].filter(
+    (item) => Boolean(item)
+  );
+}
+function toPublicPostingItem(post, maps, postingType) {
+  const institution = maps.institutionMap.get(post.institutionId);
+  const faculty = post.facultyId ? maps.facultyMap.get(post.facultyId) : null;
+  const department = post.departmentId ? maps.departmentMap.get(post.departmentId) : null;
+  const program = post.programId ? maps.programMap.get(post.programId) : null;
+  const scoreSeed = post.title.length + post.summary.length;
+  const rating = Number((3.8 + scoreSeed % 12 / 10).toFixed(1));
+  return {
+    id: post.id,
+    postingType,
+    title: post.title,
+    summary: post.summary,
+    details: post.details,
+    location: post.location,
+    createdAt: post.createdAt,
+    updatedAt: post.updatedAt,
+    institution: institution?.name ?? "Unknown institution",
+    institutionShortName: institution?.shortName ?? null,
+    institutionLogo: institution?.institutionLogo ?? null,
+    facultyName: faculty?.fullName ?? null,
+    departmentName: department?.fullName ?? null,
+    programTitle: program?.title ?? null,
+    media: buildPostingMedia(institution?.institutionLogo ?? null),
+    status: "Open",
+    rating,
+    reviewCount: 16 + scoreSeed % 41
+  };
+}
+async function resolveAdminContext(userId) {
+  const adminProfile = await prisma.adminProfile.findUnique({
+    where: {
+      userId
+    },
+    select: {
+      role: true,
+      institutionId: true
+    }
+  });
+  if (!adminProfile?.institutionId) {
+    throw createHttpError7(403, "Only admin users under an institution can manage postings");
+  }
+  return adminProfile;
+}
+async function resolveInstitutionAdminScopedIds(context, payload) {
+  if (!payload.facultyId || !payload.departmentId) {
+    throw createHttpError7(
+      400,
+      "Institution admin must provide facultyId and departmentId"
+    );
+  }
+  const faculty = await prisma.faculty.findFirst({
+    where: {
+      id: payload.facultyId,
+      institutionId: context.institutionId
+    },
+    select: {
+      id: true
+    }
+  });
+  if (!faculty) {
+    throw createHttpError7(404, "Faculty not found for this institution");
+  }
+  const department = await prisma.department.findFirst({
+    where: {
+      id: payload.departmentId,
+      facultyId: payload.facultyId,
+      faculty: {
+        institutionId: context.institutionId
+      }
+    },
+    select: {
+      id: true
+    }
+  });
+  if (!department) {
+    throw createHttpError7(404, "Department not found under selected faculty");
+  }
+  return {
+    institutionId: context.institutionId,
+    facultyId: payload.facultyId,
+    departmentId: payload.departmentId,
+    programId: null
+  };
+}
+async function resolveFacultyAdminScopedIds(context, payload) {
+  if (!payload.departmentId) {
+    throw createHttpError7(400, "Faculty admin must provide departmentId");
+  }
+  const department = await prisma.department.findFirst({
+    where: {
+      id: payload.departmentId,
+      faculty: {
+        institutionId: context.institutionId
+      }
+    },
+    select: {
+      id: true,
+      facultyId: true
+    }
+  });
+  if (!department) {
+    throw createHttpError7(404, "Department not found for this institution");
+  }
+  if (!department.facultyId) {
+    throw createHttpError7(400, "Department is not assigned to a faculty");
+  }
+  return {
+    institutionId: context.institutionId,
+    facultyId: department.facultyId,
+    departmentId: department.id,
+    programId: null
+  };
+}
+async function resolveDepartmentAdminScopedIds(context) {
+  const departments = await prisma.department.findMany({
+    where: {
+      faculty: {
+        institutionId: context.institutionId
+      }
+    },
+    select: {
+      id: true,
+      facultyId: true
+    },
+    take: 2,
+    orderBy: {
+      createdAt: "asc"
+    }
+  });
+  if (departments.length === 0) {
+    throw createHttpError7(404, "Department not found for this institution");
+  }
+  if (departments.length > 1) {
+    throw createHttpError7(400, "Multiple departments found. Contact institution admin to resolve mapping");
+  }
+  return {
+    institutionId: context.institutionId,
+    facultyId: departments[0].facultyId,
+    departmentId: departments[0].id,
+    programId: null
+  };
+}
+async function resolveScopedIds(userId, payload) {
+  const context = await resolveAdminContext(userId);
+  if (context.role === AdminRole.INSTITUTIONADMIN) {
+    return resolveInstitutionAdminScopedIds(context, payload);
+  }
+  if (context.role === AdminRole.FACULTYADMIN) {
+    return resolveFacultyAdminScopedIds(context, payload);
+  }
+  if (context.role === AdminRole.DEPARTMENTADMIN) {
+    return resolveDepartmentAdminScopedIds(context);
+  }
+  throw createHttpError7(403, "Unsupported admin role for posting management");
+}
+var createTeacherJobPost = async (userId, payload) => {
+  const scoped = await resolveScopedIds(userId, payload);
+  return prisma.teacherJobPost.create({
+    data: {
+      title: payload.title.trim(),
+      location: payload.location?.trim() || null,
+      summary: payload.summary.trim(),
+      details: payload.details?.map((item) => item.trim()).filter(Boolean) ?? [],
+      institutionId: scoped.institutionId,
+      facultyId: scoped.facultyId,
+      departmentId: scoped.departmentId,
+      programId: scoped.programId,
+      createdByUserId: userId
+    }
+  });
+};
+var createStudentAdmissionPost = async (userId, payload) => {
+  const scoped = await resolveScopedIds(userId, payload);
+  return prisma.studentAdmissionPost.create({
+    data: {
+      title: payload.title.trim(),
+      location: payload.location?.trim() || null,
+      summary: payload.summary.trim(),
+      details: payload.details?.map((item) => item.trim()).filter(Boolean) ?? [],
+      institutionId: scoped.institutionId,
+      facultyId: scoped.facultyId,
+      departmentId: scoped.departmentId,
+      programId: scoped.programId,
+      createdByUserId: userId
+    }
+  });
+};
+var toPostingUpdateData = (payload) => ({
+  title: payload.title?.trim(),
+  location: payload.location?.trim() || void 0,
+  summary: payload.summary?.trim(),
+  details: payload.details?.map((item) => item.trim()).filter(Boolean)
+});
+var listTeacherJobPostsManaged = async (userId, search) => {
+  const context = await resolveAdminContext(userId);
+  const normalizedSearch = normalizeSearch3(search);
+  const posts = await prisma.teacherJobPost.findMany({
+    where: {
+      institutionId: context.institutionId,
+      ...normalizedSearch ? {
+        OR: [
+          { title: { contains: normalizedSearch, mode: "insensitive" } },
+          { summary: { contains: normalizedSearch, mode: "insensitive" } },
+          { location: { contains: normalizedSearch, mode: "insensitive" } }
+        ]
+      } : {}
+    },
+    orderBy: {
+      createdAt: "desc"
+    }
+  });
+  const maps = await buildLookupMaps(posts);
+  return posts.map((post) => {
+    const institution = maps.institutionMap.get(post.institutionId);
+    const faculty = post.facultyId ? maps.facultyMap.get(post.facultyId) : null;
+    const department = post.departmentId ? maps.departmentMap.get(post.departmentId) : null;
+    const program = post.programId ? maps.programMap.get(post.programId) : null;
+    return {
+      id: post.id,
+      title: post.title,
+      summary: post.summary,
+      details: post.details,
+      location: post.location,
+      createdAt: post.createdAt,
+      updatedAt: post.updatedAt,
+      institution: institution?.name ?? "Unknown institution",
+      institutionShortName: institution?.shortName ?? null,
+      institutionLogo: institution?.institutionLogo ?? null,
+      facultyName: faculty?.fullName ?? null,
+      departmentName: department?.fullName ?? null,
+      programTitle: program?.title ?? null
+    };
+  });
+};
+var listStudentAdmissionPostsManaged = async (userId, search) => {
+  const context = await resolveAdminContext(userId);
+  const normalizedSearch = normalizeSearch3(search);
+  const posts = await prisma.studentAdmissionPost.findMany({
+    where: {
+      institutionId: context.institutionId,
+      ...normalizedSearch ? {
+        OR: [
+          { title: { contains: normalizedSearch, mode: "insensitive" } },
+          { summary: { contains: normalizedSearch, mode: "insensitive" } },
+          { location: { contains: normalizedSearch, mode: "insensitive" } }
+        ]
+      } : {}
+    },
+    orderBy: {
+      createdAt: "desc"
+    }
+  });
+  const maps = await buildLookupMaps(posts);
+  return posts.map((post) => {
+    const institution = maps.institutionMap.get(post.institutionId);
+    const faculty = post.facultyId ? maps.facultyMap.get(post.facultyId) : null;
+    const department = post.departmentId ? maps.departmentMap.get(post.departmentId) : null;
+    const program = post.programId ? maps.programMap.get(post.programId) : null;
+    return {
+      id: post.id,
+      title: post.title,
+      summary: post.summary,
+      details: post.details,
+      location: post.location,
+      createdAt: post.createdAt,
+      updatedAt: post.updatedAt,
+      institution: institution?.name ?? "Unknown institution",
+      institutionShortName: institution?.shortName ?? null,
+      institutionLogo: institution?.institutionLogo ?? null,
+      facultyName: faculty?.fullName ?? null,
+      departmentName: department?.fullName ?? null,
+      programTitle: program?.title ?? null
+    };
+  });
+};
+var updateTeacherJobPost = async (userId, postingId, payload) => {
+  const context = await resolveAdminContext(userId);
+  const existing = await prisma.teacherJobPost.findUnique({
+    where: {
+      id: postingId
+    },
+    select: {
+      id: true,
+      institutionId: true
+    }
+  });
+  if (existing?.institutionId !== context.institutionId) {
+    throw createHttpError7(404, "Teacher job post not found");
+  }
+  return prisma.teacherJobPost.update({
+    where: {
+      id: postingId
+    },
+    data: toPostingUpdateData(payload)
+  });
+};
+var updateStudentAdmissionPost = async (userId, postingId, payload) => {
+  const context = await resolveAdminContext(userId);
+  const existing = await prisma.studentAdmissionPost.findUnique({
+    where: {
+      id: postingId
+    },
+    select: {
+      id: true,
+      institutionId: true
+    }
+  });
+  if (existing?.institutionId !== context.institutionId) {
+    throw createHttpError7(404, "Student admission post not found");
+  }
+  return prisma.studentAdmissionPost.update({
+    where: {
+      id: postingId
+    },
+    data: toPostingUpdateData(payload)
+  });
+};
+var deleteTeacherJobPost = async (userId, postingId) => {
+  const context = await resolveAdminContext(userId);
+  const existing = await prisma.teacherJobPost.findUnique({
+    where: {
+      id: postingId
+    },
+    select: {
+      id: true,
+      institutionId: true
+    }
+  });
+  if (existing?.institutionId !== context.institutionId) {
+    throw createHttpError7(404, "Teacher job post not found");
+  }
+  await prisma.teacherJobPost.delete({
+    where: {
+      id: postingId
+    }
+  });
+  return {
+    id: postingId
+  };
+};
+var deleteStudentAdmissionPost = async (userId, postingId) => {
+  const context = await resolveAdminContext(userId);
+  const existing = await prisma.studentAdmissionPost.findUnique({
+    where: {
+      id: postingId
+    },
+    select: {
+      id: true,
+      institutionId: true
+    }
+  });
+  if (existing?.institutionId !== context.institutionId) {
+    throw createHttpError7(404, "Student admission post not found");
+  }
+  await prisma.studentAdmissionPost.delete({
+    where: {
+      id: postingId
+    }
+  });
+  return {
+    id: postingId
+  };
+};
+async function buildLookupMaps(posts) {
+  const institutionIds = Array.from(new Set(posts.map((item) => item.institutionId)));
+  const facultyIds = Array.from(
+    new Set(posts.map((item) => item.facultyId).filter((item) => Boolean(item)))
+  );
+  const departmentIds = Array.from(
+    new Set(posts.map((item) => item.departmentId).filter((item) => Boolean(item)))
+  );
+  const programIds = Array.from(
+    new Set(posts.map((item) => item.programId).filter((item) => Boolean(item)))
+  );
+  const [institutions, faculties, departments, programs] = await Promise.all([
+    institutionIds.length ? prisma.institution.findMany({
+      where: {
+        id: {
+          in: institutionIds
+        }
+      },
+      select: {
+        id: true,
+        name: true,
+        institutionLogo: true,
+        shortName: true
+      }
+    }) : Promise.resolve([]),
+    facultyIds.length ? prisma.faculty.findMany({
+      where: {
+        id: {
+          in: facultyIds
+        }
+      },
+      select: {
+        id: true,
+        fullName: true
+      }
+    }) : Promise.resolve([]),
+    departmentIds.length ? prisma.department.findMany({
+      where: {
+        id: {
+          in: departmentIds
+        }
+      },
+      select: {
+        id: true,
+        fullName: true
+      }
+    }) : Promise.resolve([]),
+    programIds.length ? prisma.program.findMany({
+      where: {
+        id: {
+          in: programIds
+        }
+      },
+      select: {
+        id: true,
+        title: true,
+        departmentId: true
+      }
+    }) : Promise.resolve([])
+  ]);
+  return {
+    institutionMap: new Map(institutions.map((item) => [item.id, item])),
+    facultyMap: new Map(faculties.map((item) => [item.id, item])),
+    departmentMap: new Map(departments.map((item) => [item.id, item])),
+    programMap: new Map(programs.map((item) => [item.id, item]))
+  };
+}
+var listTeacherJobPostsPublic = async (options = {}) => {
+  let posts;
+  const page = normalizePage(options.page);
+  const pageSize = normalizePageSize(options.pageSize ?? options.limit);
+  const sort = normalizePublicSort(options.sort);
+  const where = buildPublicPostingWhere(options.search, options.location);
+  try {
+    posts = await prisma.teacherJobPost.findMany({
+      where,
+      orderBy: getPublicPostingOrderBy(sort),
+      skip: (page - 1) * pageSize,
+      take: pageSize
+    });
+  } catch (error) {
+    if (isMissingTableError(error)) {
+      return [];
+    }
+    throw error;
+  }
+  const maps = await buildLookupMaps(posts);
+  return posts.map(
+    (post) => toPublicPostingItem(post, maps, "teacher")
+  );
+};
+var listStudentAdmissionPostsPublic = async (options = {}) => {
+  let posts;
+  const page = normalizePage(options.page);
+  const pageSize = normalizePageSize(options.pageSize ?? options.limit);
+  const sort = normalizePublicSort(options.sort);
+  const where = buildPublicPostingWhere(options.search, options.location);
+  try {
+    posts = await prisma.studentAdmissionPost.findMany({
+      where,
+      orderBy: getPublicPostingOrderBy(sort),
+      skip: (page - 1) * pageSize,
+      take: pageSize
+    });
+  } catch (error) {
+    if (isMissingTableError(error)) {
+      return [];
+    }
+    throw error;
+  }
+  const maps = await buildLookupMaps(posts);
+  return posts.map(
+    (post) => toPublicPostingItem(post, maps, "student")
+  );
+};
+var listPublicExplorePostings = async (query) => {
+  const page = normalizePage(query.page);
+  const pageSize = normalizePageSize(query.pageSize);
+  const sort = normalizePublicSort(query.sort);
+  const where = buildPublicPostingWhere(query.search, query.location, query.department);
+  let posts = [];
+  let total = 0;
+  try {
+    if (query.type === "student") {
+      const [count, rows] = await Promise.all([
+        prisma.studentAdmissionPost.count({ where }),
+        prisma.studentAdmissionPost.findMany({
+          where,
+          orderBy: getPublicPostingOrderBy(sort),
+          skip: (page - 1) * pageSize,
+          take: pageSize
+        })
+      ]);
+      total = count;
+      posts = rows;
+    } else {
+      const [count, rows] = await Promise.all([
+        prisma.teacherJobPost.count({ where }),
+        prisma.teacherJobPost.findMany({
+          where,
+          orderBy: getPublicPostingOrderBy(sort),
+          skip: (page - 1) * pageSize,
+          take: pageSize
+        })
+      ]);
+      total = count;
+      posts = rows;
+    }
+  } catch (error) {
+    if (isMissingTableError(error)) {
+      return {
+        type: query.type,
+        sort,
+        pagination: {
+          page,
+          pageSize,
+          total: 0,
+          totalPages: 0
+        },
+        filters: {
+          locations: [],
+          departments: []
+        },
+        items: []
+      };
+    }
+    throw error;
+  }
+  const maps = await buildLookupMaps(posts);
+  const items = posts.map((post) => toPublicPostingItem(post, maps, query.type));
+  const locations = Array.from(
+    new Set(items.map((item) => item.location).filter((item) => Boolean(item)))
+  ).slice(0, 20);
+  const departments = Array.from(
+    new Set(items.map((item) => item.departmentName).filter((item) => Boolean(item)))
+  ).slice(0, 20);
+  return {
+    type: query.type,
+    sort,
+    pagination: {
+      page,
+      pageSize,
+      total,
+      totalPages: total > 0 ? Math.ceil(total / pageSize) : 0
+    },
+    filters: {
+      locations,
+      departments
+    },
+    items
+  };
+};
+function buildRelatedPostingWhere(post) {
+  return {
+    id: { not: post.id },
+    OR: [
+      { institutionId: post.institutionId },
+      ...post.departmentId ? [{ departmentId: post.departmentId }] : [],
+      ...post.programId ? [{ programId: post.programId }] : []
+    ]
+  };
+}
+async function loadStudentPostingWithRelated(postingId) {
+  const post = await prisma.studentAdmissionPost.findUnique({ where: { id: postingId } });
+  if (!post) {
+    return { post: null, related: [] };
+  }
+  const related = await prisma.studentAdmissionPost.findMany({
+    where: buildRelatedPostingWhere(post),
+    orderBy: {
+      createdAt: "desc"
+    },
+    take: 4
+  });
+  return { post, related };
+}
+async function loadTeacherPostingWithRelated(postingId) {
+  const post = await prisma.teacherJobPost.findUnique({ where: { id: postingId } });
+  if (!post) {
+    return { post: null, related: [] };
+  }
+  const related = await prisma.teacherJobPost.findMany({
+    where: buildRelatedPostingWhere(post),
+    orderBy: {
+      createdAt: "desc"
+    },
+    take: 4
+  });
+  return { post, related };
+}
+async function loadPostingWithRelated(postingType, postingId) {
+  if (postingType === "student") {
+    return loadStudentPostingWithRelated(postingId);
+  }
+  return loadTeacherPostingWithRelated(postingId);
+}
+var getPublicPostingDetails = async (postingType, postingId) => {
+  let data;
+  try {
+    data = await loadPostingWithRelated(postingType, postingId);
+  } catch (error) {
+    if (isMissingTableError(error)) {
+      throw createHttpError7(404, "Posting not found");
+    }
+    throw error;
+  }
+  if (!data.post) {
+    throw createHttpError7(404, "Posting not found");
+  }
+  const maps = await buildLookupMaps([data.post, ...data.related]);
+  const details = toPublicPostingItem(data.post, maps, postingType);
+  const relatedItems = data.related.map((item) => toPublicPostingItem(item, maps, postingType));
+  return {
+    ...details,
+    overview: details.summary,
+    keyInfo: [
+      { label: "Institution", value: details.institution },
+      { label: "Department", value: details.departmentName ?? "N/A" },
+      { label: "Program", value: details.programTitle ?? "N/A" },
+      { label: "Location", value: details.location ?? "Not specified" },
+      { label: "Posted", value: details.createdAt.toISOString() },
+      { label: "Status", value: details.status }
+    ],
+    reviews: {
+      averageRating: details.rating,
+      totalReviews: details.reviewCount,
+      highlights: [
+        "Clear requirements and role expectations",
+        "Responsive institution onboarding process",
+        "Strong role-based workflow support"
+      ]
+    },
+    relatedItems
+  };
+};
+var getPostingOptions = async (userId, search) => {
+  const context = await resolveAdminContext(userId);
+  const normalizedSearch = normalizeSearch3(search);
+  if (context.role === AdminRole.INSTITUTIONADMIN) {
+    const [faculties, departments] = await Promise.all([
+      prisma.faculty.findMany({
+        where: {
+          institutionId: context.institutionId,
+          ...normalizedSearch ? {
+            OR: [{ fullName: { contains: normalizedSearch, mode: "insensitive" } }]
+          } : {}
+        },
+        select: {
+          id: true,
+          fullName: true
+        },
+        orderBy: {
+          fullName: "asc"
+        }
+      }),
+      prisma.department.findMany({
+        where: {
+          faculty: {
+            institutionId: context.institutionId
+          },
+          ...normalizedSearch ? {
+            OR: [{ fullName: { contains: normalizedSearch, mode: "insensitive" } }]
+          } : {}
+        },
+        select: {
+          id: true,
+          fullName: true,
+          facultyId: true
+        },
+        orderBy: {
+          fullName: "asc"
+        }
+      })
+    ]);
+    return {
+      faculties,
+      departments
+    };
+  }
+  if (context.role === AdminRole.FACULTYADMIN) {
+    const departments = await prisma.department.findMany({
+      where: {
+        faculty: {
+          institutionId: context.institutionId
+        },
+        ...normalizedSearch ? {
+          OR: [{ fullName: { contains: normalizedSearch, mode: "insensitive" } }]
+        } : {}
+      },
+      select: {
+        id: true,
+        fullName: true,
+        facultyId: true
+      },
+      orderBy: {
+        fullName: "asc"
+      }
+    });
+    return {
+      faculties: [],
+      departments
+    };
+  }
+  if (context.role === AdminRole.DEPARTMENTADMIN) {
+    return {
+      faculties: [],
+      departments: []
+    };
+  }
+  throw createHttpError7(403, "Unsupported admin role for posting options");
+};
+var PostingService = {
+  createTeacherJobPost,
+  createStudentAdmissionPost,
+  listTeacherJobPostsPublic,
+  listStudentAdmissionPostsPublic,
+  listPublicExplorePostings,
+  getPublicPostingDetails,
+  getPostingOptions,
+  listTeacherJobPostsManaged,
+  listStudentAdmissionPostsManaged,
+  updateTeacherJobPost,
+  updateStudentAdmissionPost,
+  deleteTeacherJobPost,
+  deleteStudentAdmissionPost
+};
+
+// src/app/module/home/home.service.ts
+var formatCount = (value) => new Intl.NumberFormat("en").format(value);
+var buildSummaryCard = (label, value, suffix = "") => ({
+  label,
+  value: formatCount(value),
+  suffix
+});
+var homeSlides = [
+  {
+    eyebrow: "SaaS campus portal platform",
+    title: "Run every institution in one unified portal.",
+    description: "Sell a branded portal to institutions, then manage programs, departments, faculty, teachers, and students in one calm workspace.",
+    stats: []
+  },
+  {
+    eyebrow: "Admission + hiring",
+    title: "Publish openings and review applications faster.",
+    description: "Create teacher and student postings, track approvals, and keep every review step visible for the right stakeholders.",
+    stats: []
+  },
+  {
+    eyebrow: "Role-based workflow",
+    title: "Give every role the right control panel.",
+    description: "From institution admin to student, each workspace is purpose-built with scoped actions, notices, and academic operations.",
+    stats: []
+  }
+];
+var features = [
+  {
+    iconKey: "multi-role",
+    title: "Multi-role workspaces",
+    description: "Owners, admins, faculty, teachers, and students each get a tailored view."
+  },
+  {
+    iconKey: "approvals",
+    title: "Admissions and approvals",
+    description: "Teachers and students apply to institutions and track approvals in real time."
+  },
+  {
+    iconKey: "operations",
+    title: "Academic operations",
+    description: "Manage attendance, assignments, quizzes, and results from one dashboard."
+  }
+];
+var steps = [
+  {
+    title: "Launch an institution portal",
+    description: "Set up your institution, branding, and access rules in minutes."
+  },
+  {
+    title: "Configure programs and roles",
+    description: "Add departments, faculty, teachers, students, and academic programs."
+  },
+  {
+    title: "Run daily operations",
+    description: "Manage admissions, attendance, assignments, quizzes, and results."
+  }
+];
+var about = {
+  title: "One portal to serve every institution you manage.",
+  description: "We blend admissions, academics, and communication so leadership teams stay in control while teachers focus on learning.",
+  values: ["Role-based permissions", "Institution-ready workflows", "Scalable SaaS operations"],
+  highlights: [
+    "We launched a full portal for three campuses in one week.",
+    "Admissions and approvals finally live in one place.",
+    "Teachers and students love the clarity of the portal."
+  ]
+};
+var testimonials = [
+  {
+    quote: "We sell portals to institutions and everything is managed from one dashboard.",
+    name: "Mira A.",
+    role: "Platform Owner"
+  },
+  {
+    quote: "Applications from teachers and students flow straight into approvals.",
+    name: "Rahim S.",
+    role: "Admissions Lead"
+  },
+  {
+    quote: "Attendance, quizzes, and assignments are finally in sync across departments.",
+    name: "Nadia T.",
+    role: "Academic Operations"
+  }
+];
+var faqs = [
+  {
+    question: "How quickly can an institution start using Biddyaloy?",
+    answer: "Most institutions complete onboarding in 1-3 days, including role setup, profile verification, and first workflow configuration."
+  },
+  {
+    question: "Does the platform support multiple departments and academic structures?",
+    answer: "Yes. Biddyaloy supports institution, faculty, department, and program-level workflows with role-based access control."
+  },
+  {
+    question: "Can we manage teacher and student applications from one dashboard?",
+    answer: "Yes. Application publishing, screening, review, and approval actions are centralized across admin workspaces."
+  },
+  {
+    question: "How are payments and renewals managed?",
+    answer: "Subscription pricing, payment initiation, and renewal status are integrated directly into the institution administration workflow."
+  }
+];
+var buildBlogCard = (item) => ({
+  title: item.title,
+  excerpt: item.summary,
+  href: `/explore/${item.postingType ?? "teacher"}/${item.id}`,
+  tag: item.postingType === "student" ? "Admission" : "Hiring"
+});
+var getContent = async () => {
+  const [institutionCount, teacherExplore, studentExplore] = await Promise.all([
+    prisma.institution.count(),
+    PostingService.listPublicExplorePostings({ type: "teacher", page: 1, pageSize: 3, sort: "newest" }),
+    PostingService.listPublicExplorePostings({ type: "student", page: 1, pageSize: 3, sort: "newest" })
+  ]);
+  const teacherTotal = teacherExplore.pagination.total;
+  const studentTotal = studentExplore.pagination.total;
+  const topTeacherPost = teacherExplore.items[0];
+  const topStudentPost = studentExplore.items[0];
+  const slides = [
+    {
+      ...homeSlides[0],
+      stats: [
+        buildSummaryCard("Institutions onboarded", institutionCount),
+        buildSummaryCard("Open teacher jobs", teacherTotal),
+        buildSummaryCard("Admission posts", studentTotal)
+      ]
+    },
+    {
+      ...homeSlides[1],
+      stats: [
+        buildSummaryCard("Teacher openings", teacherTotal),
+        buildSummaryCard("Student admissions", studentTotal),
+        buildSummaryCard("Live listings", teacherTotal + studentTotal)
+      ]
+    },
+    {
+      ...homeSlides[2],
+      stats: [
+        buildSummaryCard("Role dashboards", 6),
+        buildSummaryCard("Public postings", teacherTotal + studentTotal),
+        buildSummaryCard("Active institutions", institutionCount)
+      ]
+    }
+  ];
+  const blogPosts = [...teacherExplore.items, ...studentExplore.items].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()).slice(0, 3).map(buildBlogCard);
+  return {
+    slides,
+    stats: [
+      buildSummaryCard("Institutions onboarded", institutionCount, "+"),
+      buildSummaryCard("Teacher openings", teacherTotal, "+"),
+      buildSummaryCard("Admission posts", studentTotal, "+"),
+      buildSummaryCard("Public workflows", teacherTotal + studentTotal, "+")
+    ],
+    features,
+    steps,
+    about,
+    testimonials,
+    faqs,
+    blogPosts: blogPosts.length > 0 ? blogPosts : [
+      ...topTeacherPost ? [buildBlogCard(topTeacherPost)] : [],
+      ...topStudentPost ? [buildBlogCard(topStudentPost)] : []
+    ]
+  };
+};
+var HomeService = {
+  getContent
+};
+
+// src/app/module/home/home.controller.ts
+var getContent2 = catchAsync(async (_req, res) => {
+  const result = await HomeService.getContent();
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Home content fetched successfully",
+    data: result
+  });
+});
+var HomeController = {
+  getContent: getContent2
+};
+
+// src/app/module/home/home.route.ts
+var router6 = Router6();
+router6.get("/content", HomeController.getContent);
+var HomeRouter = router6;
+
+// src/app/module/institute/institute.route.ts
+import { Router as Router7 } from "express";
 
 // src/app/module/institute/interface.validation.ts
 import z7 from "zod";
@@ -8605,7 +9620,7 @@ var InstituteValidation = {
 };
 
 // src/app/module/institute/institute.service.ts
-function createHttpError7(statusCode, message) {
+function createHttpError8(statusCode, message) {
   const error = new Error(message);
   error.statusCode = statusCode;
   return error;
@@ -8629,7 +9644,7 @@ var listInstitutionOptions = async (userId, search) => {
     }
   });
   if (!adminProfile?.institutionId) {
-    throw createHttpError7(403, "Only institution admins can list institution options");
+    throw createHttpError8(403, "Only institution admins can list institution options");
   }
   const normalizedSearch = search?.trim();
   return prisma.institution.findMany({
@@ -8700,18 +9715,18 @@ var InstituteController = {
 };
 
 // src/app/module/institute/institute.route.ts
-var router6 = Router6();
-router6.post("/create", validateRequest(InstituteValidation.createInstitutionSchema), InstituteController.createInstitution);
-router6.get(
+var router7 = Router7();
+router7.post("/create", validateRequest(InstituteValidation.createInstitutionSchema), InstituteController.createInstitution);
+router7.get(
   "/options",
   requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT"),
   validateRequest(InstituteValidation.listInstitutionOptionsSchema),
   InstituteController.listInstitutionOptions
 );
-var InstituteRoutes = router6;
+var InstituteRoutes = router7;
 
 // src/app/module/institutionAdmin/institutionAdmin.route.ts
-import { Router as Router7 } from "express";
+import { Router as Router8 } from "express";
 
 // src/app/shared/credentialSecurity.ts
 import crypto from "crypto";
@@ -8772,7 +9787,7 @@ function maskCredentialValue(value) {
 }
 
 // src/app/module/institutionAdmin/institutionAdmin.service.ts
-function createHttpError8(statusCode, message) {
+function createHttpError9(statusCode, message) {
   const error = new Error(message);
   error.statusCode = statusCode;
   return error;
@@ -8789,7 +9804,7 @@ function canCreateSubAdmin(creatorRole, targetAccountType) {
   }
   return false;
 }
-function normalizeSearch3(search) {
+function normalizeSearch4(search) {
   const value = search?.trim();
   return value || void 0;
 }
@@ -8810,7 +9825,7 @@ function getFrontendBaseUrl() {
 function getBackendBaseUrl() {
   const raw3 = process.env.BACKEND_PUBLIC_URL?.trim() || process.env.BASE_URL?.trim();
   if (!raw3) {
-    throw createHttpError8(
+    throw createHttpError9(
       500,
       "Backend public URL is not configured. Set BACKEND_PUBLIC_URL in environment."
     );
@@ -8825,7 +9840,7 @@ function getSslCommerzCredentials() {
   const storeId = process.env.SSLCOMMERZ_STORE_ID?.trim();
   const storePassword = process.env.SSLCOMMERZ_STORE_PASSWORD?.trim();
   if (!storeId || !storePassword) {
-    throw createHttpError8(
+    throw createHttpError9(
       500,
       "SSLCommerz credentials are not configured. Set SSLCOMMERZ_STORE_ID and SSLCOMMERZ_STORE_PASSWORD."
     );
@@ -8892,10 +9907,10 @@ var resolveInstitutionAdminContext = async (creatorUserId) => {
     }
   });
   if (!creatorAdminProfile?.institutionId) {
-    throw createHttpError8(403, "Only institution admins can manage semesters");
+    throw createHttpError9(403, "Only institution admins can manage semesters");
   }
   if (creatorAdminProfile.role !== AdminRole.INSTITUTIONADMIN) {
-    throw createHttpError8(403, "Only institution admins can manage semesters");
+    throw createHttpError9(403, "Only institution admins can manage semesters");
   }
   return creatorAdminProfile;
 };
@@ -9092,7 +10107,7 @@ var upsertSslCommerzCredential = async (creatorUserId, payload) => {
     resolvedBaseUrl = resolvedBaseUrl || decryptCredentialValue(existing.sslCommerzBaseUrlEncrypted);
   }
   if (!resolvedStoreId || !resolvedStorePassword || !resolvedBaseUrl) {
-    throw createHttpError8(
+    throw createHttpError9(
       400,
       "storeId, storePassword and baseUrl are required for SSLCommerz credential setup"
     );
@@ -9101,7 +10116,7 @@ var upsertSslCommerzCredential = async (creatorUserId, payload) => {
   try {
     normalizedBaseUrl = new URL(resolvedBaseUrl).toString().replace(/\/$/, "");
   } catch {
-    throw createHttpError8(400, "baseUrl must be a valid URL");
+    throw createHttpError9(400, "baseUrl must be a valid URL");
   }
   await prisma.institutionPaymentGatewayCredential.upsert({
     where: {
@@ -9135,7 +10150,7 @@ var initiateSubscriptionRenewal = async (creatorUserId, payload) => {
   const context = await resolveInstitutionAdminContext(creatorUserId);
   const selectedPlan = SUBSCRIPTION_PLAN_CONFIG[payload.plan];
   if (!selectedPlan) {
-    throw createHttpError8(400, "Invalid subscription plan selected");
+    throw createHttpError9(400, "Invalid subscription plan selected");
   }
   const user = await prisma.user.findUnique({
     where: {
@@ -9149,7 +10164,7 @@ var initiateSubscriptionRenewal = async (creatorUserId, payload) => {
     }
   });
   if (!user) {
-    throw createHttpError8(404, "User not found");
+    throw createHttpError9(404, "User not found");
   }
   const amount = toMoneyNumber2(selectedPlan.amount);
   const currency = "BDT";
@@ -9220,7 +10235,7 @@ var initiateSubscriptionRenewal = async (creatorUserId, payload) => {
       }
     });
     const failureMessage = gatewayResponse?.failedreason?.trim() || gatewayResponse?.status?.trim() || "Unable to initialize SSLCommerz payment session";
-    throw createHttpError8(502, failureMessage);
+    throw createHttpError9(502, failureMessage);
   }
   await prisma.institutionSubscriptionRenewalPayment.update({
     where: {
@@ -9422,15 +10437,15 @@ var createSemester3 = async (creatorUserId, payload) => {
   const startDate = new Date(payload.startDate);
   const endDate = new Date(payload.endDate);
   if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
-    throw createHttpError8(400, "Invalid startDate or endDate");
+    throw createHttpError9(400, "Invalid startDate or endDate");
   }
   const today = /* @__PURE__ */ new Date();
   today.setHours(0, 0, 0, 0);
   if (startDate <= today) {
-    throw createHttpError8(400, "startDate must be after today");
+    throw createHttpError9(400, "startDate must be after today");
   }
   if (startDate >= endDate) {
-    throw createHttpError8(400, "startDate must be before endDate");
+    throw createHttpError9(400, "startDate must be before endDate");
   }
   return prisma.semester.create({
     data: {
@@ -9450,31 +10465,31 @@ var updateSemester3 = async (creatorUserId, semesterId, payload) => {
     }
   });
   if (!existingSemester) {
-    throw createHttpError8(404, "Semester not found for this institution");
+    throw createHttpError9(404, "Semester not found for this institution");
   }
   let nextStartDate = existingSemester.startDate;
   let nextEndDate = existingSemester.endDate;
   if (payload.startDate) {
     const parsedStartDate = new Date(payload.startDate);
     if (Number.isNaN(parsedStartDate.getTime())) {
-      throw createHttpError8(400, "Invalid startDate");
+      throw createHttpError9(400, "Invalid startDate");
     }
     const today = /* @__PURE__ */ new Date();
     today.setHours(0, 0, 0, 0);
     if (parsedStartDate <= today) {
-      throw createHttpError8(400, "startDate must be after today");
+      throw createHttpError9(400, "startDate must be after today");
     }
     nextStartDate = parsedStartDate;
   }
   if (payload.endDate) {
     const parsedEndDate = new Date(payload.endDate);
     if (Number.isNaN(parsedEndDate.getTime())) {
-      throw createHttpError8(400, "Invalid endDate");
+      throw createHttpError9(400, "Invalid endDate");
     }
     nextEndDate = parsedEndDate;
   }
   if (nextStartDate >= nextEndDate) {
-    throw createHttpError8(400, "startDate must be before endDate");
+    throw createHttpError9(400, "startDate must be before endDate");
   }
   return prisma.semester.update({
     where: {
@@ -9499,7 +10514,7 @@ var deleteSemester = async (creatorUserId, semesterId) => {
     }
   });
   if (!existingSemester) {
-    throw createHttpError8(404, "Semester not found for this institution");
+    throw createHttpError9(404, "Semester not found for this institution");
   }
   await prisma.semester.delete({
     where: {
@@ -9521,12 +10536,12 @@ var listFaculties = async (creatorUserId, search) => {
     }
   });
   if (!creatorAdminProfile?.institutionId) {
-    throw createHttpError8(403, "Only institution-level admins can view faculties");
+    throw createHttpError9(403, "Only institution-level admins can view faculties");
   }
   if (!canCreateSubAdmin(creatorAdminProfile.role, "DEPARTMENT")) {
-    throw createHttpError8(403, "You are not allowed to view faculties for department creation");
+    throw createHttpError9(403, "You are not allowed to view faculties for department creation");
   }
-  const normalizedSearch = normalizeSearch3(search);
+  const normalizedSearch = normalizeSearch4(search);
   return prisma.faculty.findMany({
     where: {
       institutionId: creatorAdminProfile.institutionId,
@@ -9558,10 +10573,10 @@ var createSubAdminAccount = async (creatorUserId, payload) => {
     }
   });
   if (!creatorAdminProfile?.institutionId) {
-    throw createHttpError8(403, "Only institution-level admins can create sub-admin accounts");
+    throw createHttpError9(403, "Only institution-level admins can create sub-admin accounts");
   }
   if (!canCreateSubAdmin(creatorAdminProfile.role, payload.accountType)) {
-    throw createHttpError8(
+    throw createHttpError9(
       403,
       "You are not allowed to create this account type. Faculty admins can only create department accounts"
     );
@@ -9575,7 +10590,7 @@ var createSubAdminAccount = async (creatorUserId, payload) => {
     }
   });
   if (!registered.user) {
-    throw createHttpError8(500, "Failed to create account");
+    throw createHttpError9(500, "Failed to create account");
   }
   const normalizedFacultyFullName = payload.facultyFullName?.trim();
   const normalizedFacultyShortName = payload.facultyShortName?.trim();
@@ -9625,7 +10640,7 @@ var createSubAdminAccount = async (creatorUserId, payload) => {
         }
       });
       if (!existingFaculty) {
-        throw createHttpError8(404, "Faculty not found for this institution");
+        throw createHttpError9(404, "Faculty not found for this institution");
       }
       targetFacultyId = existingFaculty.id;
     }
@@ -9661,13 +10676,13 @@ var createSubAdminAccount = async (creatorUserId, payload) => {
           }
         });
         if (faculties.length === 0) {
-          throw createHttpError8(
+          throw createHttpError9(
             400,
             "Cannot create department without a faculty. Provide faculty fields first"
           );
         }
         if (faculties.length > 1) {
-          throw createHttpError8(
+          throw createHttpError9(
             400,
             "Multiple faculties found. Provide facultyId or faculty fields to select a target faculty"
           );
@@ -9969,92 +10984,92 @@ var InstitutionAdminValidation = {
 };
 
 // src/app/module/institutionAdmin/institutionAdmin.route.ts
-var router7 = Router7();
-router7.get(
+var router8 = Router8();
+router8.get(
   "/dashboard-summary",
   requireAdminRole(),
   InstitutionAdminController.getDashboardSummary
 );
-router7.patch(
+router8.patch(
   "/profile",
   requireAdminRole(),
   validateRequest(InstitutionAdminValidation.updateProfileSchema),
   InstitutionAdminController.updateProfile
 );
-router7.get(
+router8.get(
   "/payment-gateway/sslcommerz",
   requireAdminRole(),
   InstitutionAdminController.getSslCommerzCredential
 );
-router7.put(
+router8.put(
   "/payment-gateway/sslcommerz",
   requireAdminRole(),
   validateRequest(InstitutionAdminValidation.upsertSslCommerzCredentialSchema),
   InstitutionAdminController.upsertSslCommerzCredential
 );
-router7.post(
+router8.post(
   "/subscription/renew/initiate",
   requireAdminRole(),
   validateRequest(InstitutionAdminValidation.initiateSubscriptionRenewalSchema),
   InstitutionAdminController.initiateSubscriptionRenewal
 );
-router7.get(
+router8.get(
   "/subscription/renew/payment/success",
   InstitutionAdminController.handleRenewalPaymentSuccess
 );
-router7.get(
+router8.get(
   "/subscription/renew/payment/fail",
   InstitutionAdminController.handleRenewalPaymentFail
 );
-router7.get(
+router8.get(
   "/subscription/renew/payment/cancel",
   InstitutionAdminController.handleRenewalPaymentCancel
 );
-router7.post(
+router8.post(
   "/subscription/renew/payment/success",
   InstitutionAdminController.handleRenewalPaymentSuccess
 );
-router7.post(
+router8.post(
   "/subscription/renew/payment/fail",
   InstitutionAdminController.handleRenewalPaymentFail
 );
-router7.post(
+router8.post(
   "/subscription/renew/payment/cancel",
   InstitutionAdminController.handleRenewalPaymentCancel
 );
-router7.get("/faculties", requireAdminRole(), InstitutionAdminController.listFaculties);
-router7.get("/semesters", requireAdminRole(), InstitutionAdminController.listSemesters);
-router7.post(
+router8.get("/faculties", requireAdminRole(), InstitutionAdminController.listFaculties);
+router8.get("/semesters", requireAdminRole(), InstitutionAdminController.listSemesters);
+router8.post(
   "/semesters",
   requireAdminRole(),
   validateRequest(InstitutionAdminValidation.createSemesterSchema),
   InstitutionAdminController.createSemester
 );
-router7.patch(
+router8.patch(
   "/semesters/:semesterId",
   requireAdminRole(),
   validateRequest(InstitutionAdminValidation.updateSemesterSchema),
   InstitutionAdminController.updateSemester
 );
-router7.delete(
+router8.delete(
   "/semesters/:semesterId",
   requireAdminRole(),
   validateRequest(InstitutionAdminValidation.semesterParamsSchema),
   InstitutionAdminController.deleteSemester
 );
-router7.post(
+router8.post(
   "/sub-admins",
   requireAdminRole(),
   validateRequest(InstitutionAdminValidation.createSubAdminSchema),
   InstitutionAdminController.createSubAdminAccount
 );
-var InstitutionAdminRouter = router7;
+var InstitutionAdminRouter = router8;
 
 // src/app/module/institutionApplication/institutionApplication.route.ts
-import { Router as Router8 } from "express";
+import { Router as Router9 } from "express";
 
 // src/app/module/institutionApplication/institutionApplication.service.ts
-function createHttpError9(statusCode, message) {
+function createHttpError10(statusCode, message) {
   const error = new Error(message);
   error.statusCode = statusCode;
   return error;
@@ -10077,7 +11092,7 @@ function getFrontendBaseUrl2() {
 function getBackendBaseUrl2() {
   const raw3 = process.env.BACKEND_PUBLIC_URL?.trim() || process.env.BASE_URL?.trim();
   if (!raw3) {
-    throw createHttpError9(
+    throw createHttpError10(
       500,
       "Backend public URL is not configured. Set BACKEND_PUBLIC_URL in environment."
     );
@@ -10092,7 +11107,7 @@ function getSslCommerzCredentials2() {
   const storeId = process.env.SSLCOMMERZ_STORE_ID?.trim();
   const storePassword = process.env.SSLCOMMERZ_STORE_PASSWORD?.trim();
   if (!storeId || !storePassword) {
-    throw createHttpError9(
+    throw createHttpError10(
       500,
       "SSLCommerz credentials are not configured. Set SSLCOMMERZ_STORE_ID and SSLCOMMERZ_STORE_PASSWORD."
     );
@@ -10158,7 +11173,7 @@ var create = async (userId, payload) => {
     }
   });
   if (adminProfile?.institutionId) {
-    throw createHttpError9(400, "You are already assigned to an institution");
+    throw createHttpError10(400, "You are already assigned to an institution");
   }
   const existingPending = await prisma.institutionApplication.findFirst({
     where: {
@@ -10170,7 +11185,7 @@ var create = async (userId, payload) => {
     }
   });
   if (existingPending) {
-    throw createHttpError9(400, "You already have a pending application");
+    throw createHttpError10(400, "You already have a pending application");
   }
   return prisma.institutionApplication.create({
     data: {
@@ -10278,13 +11293,13 @@ var initiateSubscriptionPayment = async (userId, applicationId, payload) => {
     }
   });
   if (!application) {
-    throw createHttpError9(404, "Application not found");
+    throw createHttpError10(404, "Application not found");
   }
   if (application.status !== InstitutionApplicationStatus.PENDING) {
-    throw createHttpError9(400, "Only pending applications can receive subscription payments");
+    throw createHttpError10(400, "Only pending applications can receive subscription payments");
   }
   if (application.subscriptionPaymentStatus === SUBSCRIPTION_PAYMENT_STATUS_PAID2) {
-    throw createHttpError9(400, "Subscription payment already completed for this application");
+    throw createHttpError10(400, "Subscription payment already completed for this application");
   }
   const user = await prisma.user.findUnique({
     where: {
@@ -10298,7 +11313,7 @@ var initiateSubscriptionPayment = async (userId, applicationId, payload) => {
     }
   });
   if (!user) {
-    throw createHttpError9(404, "User not found");
+    throw createHttpError10(404, "User not found");
   }
   const selectedPlan = SUBSCRIPTION_PLAN_CONFIG2[payload.plan];
   const amount = toMoneyNumber3(selectedPlan.amount);
@@ -10367,7 +11382,7 @@ var initiateSubscriptionPayment = async (userId, applicationId, payload) => {
       }
     });
     const failureMessage = gatewayResponse?.failedreason?.trim() || gatewayResponse?.status?.trim() || "Unable to initialize SSLCommerz payment session";
-    throw createHttpError9(502, failureMessage);
+    throw createHttpError10(502, failureMessage);
   }
   await prisma.institutionApplication.update({
     where: {
@@ -10605,7 +11620,7 @@ var listInstitutionStudentPaymentsForAdmin = async (userId) => {
     }
   });
   if (!adminProfile?.institutionId) {
-    throw createHttpError9(403, "Only institution admins can view institution payment details");
+    throw createHttpError10(403, "Only institution admins can view institution payment details");
   }
   return listInstitutionStudentPaymentsForSuperAdmin(adminProfile.institutionId);
 };
@@ -10630,6 +11645,12 @@ var getSuperAdminSummary = async (userId) => {
     activeSessions,
     newSignupsLast7Days,
     newSignupsPrevious7Days,
+    newStudentsLast7Days,
+    newStudentsPrevious7Days,
+    newTeachersLast7Days,
+    newTeachersPrevious7Days,
+    newStaffLast7Days,
+    newStaffPrevious7Days,
     newInstitutionsThisMonth,
     newAdmissionsThisMonth,
     pendingTeacherApprovals,
@@ -10648,9 +11669,9 @@ var getSuperAdminSummary = async (userId) => {
       }
     }),
     prisma.institution.count(),
-    prisma.studentProfile.count(),
-    prisma.teacherProfile.count(),
-    prisma.adminProfile.count(),
+    prisma.user.count({ where: { role: "STUDENT" } }),
+    prisma.user.count({ where: { role: "TEACHER" } }),
+    prisma.user.count({ where: { role: { in: ["ADMIN", "SUPERADMIN"] } } }),
     prisma.institutionApplication.count({
       where: {
         status: InstitutionApplicationStatus.PENDING
@@ -10691,6 +11712,61 @@ var getSuperAdminSummary = async (userId) => {
         }
       }
     }),
+    prisma.user.count({
+      where: {
+        role: "STUDENT",
+        createdAt: {
+          gte: sevenDaysAgo
+        }
+      }
+    }),
+    prisma.user.count({
+      where: {
+        role: "STUDENT",
+        createdAt: {
+          gte: fourteenDaysAgo,
+          lt: sevenDaysAgo
+        }
+      }
+    }),
+    prisma.user.count({
+      where: {
+        role: "TEACHER",
+        createdAt: {
+          gte: sevenDaysAgo
+        }
+      }
+    }),
+    prisma.user.count({
+      where: {
+        role: "TEACHER",
+        createdAt: {
+          gte: fourteenDaysAgo,
+          lt: sevenDaysAgo
+        }
+      }
+    }),
+    prisma.user.count({
+      where: {
+        role: {
+          in: ["ADMIN", "SUPERADMIN"]
+        },
+        createdAt: {
+          gte: sevenDaysAgo
+        }
+      }
+    }),
+    prisma.user.count({
+      where: {
+        role: {
+          in: ["ADMIN", "SUPERADMIN"]
+        },
+        createdAt: {
+          gte: fourteenDaysAgo,
+          lt: sevenDaysAgo
+        }
+      }
+    }),
     prisma.institution.count({
       where: {
         createdAt: {
@@ -10698,9 +11774,9 @@ var getSuperAdminSummary = async (userId) => {
         }
       }
     }),
-    prisma.studentProfile.count({
+    prisma.studentAdmissionApplication.count({
       where: {
-        createdAt: {
+        appliedAt: {
           gte: monthStart
         }
       }
@@ -10721,6 +11797,18 @@ var getSuperAdminSummary = async (userId) => {
   const growthBase = Math.max(newSignupsPrevious7Days, 1);
   const weeklyGrowthPercentage = Number(
     ((newSignupsLast7Days - newSignupsPrevious7Days) / growthBase * 100).toFixed(2)
+  );
+  const studentGrowthBase = Math.max(newStudentsPrevious7Days, 1);
+  const studentGrowthPercentage = Number(
+    ((newStudentsLast7Days - newStudentsPrevious7Days) / studentGrowthBase * 100).toFixed(2)
+  );
+  const teacherGrowthBase = Math.max(newTeachersPrevious7Days, 1);
+  const teacherGrowthPercentage = Number(
+    ((newTeachersLast7Days - newTeachersPrevious7Days) / teacherGrowthBase * 100).toFixed(2)
+  );
+  const staffGrowthBase = Math.max(newStaffPrevious7Days, 1);
+  const staffGrowthPercentage = Number(
+    ((newStaffLast7Days - newStaffPrevious7Days) / staffGrowthBase * 100).toFixed(2)
   );
   const institutionTypeBreakdown = institutionTypeGroups.reduce(
     (acc, item) => {
@@ -10743,6 +11831,9 @@ var getSuperAdminSummary = async (userId) => {
       rejectedApplications,
       newSignupsLast7Days,
       weeklyGrowthPercentage,
+      studentGrowthPercentage,
+      teacherGrowthPercentage,
+      staffGrowthPercentage,
       pendingInstitutionVerifications: pendingApplications,
       newInstitutionsThisMonth,
       newAdmissionsThisMonth,
@@ -10759,17 +11850,17 @@ var review = async (reviewerUserId, applicationId, payload) => {
     }
   });
   if (!application) {
-    throw createHttpError9(404, "Application not found");
+    throw createHttpError10(404, "Application not found");
   }
   if (application.status !== InstitutionApplicationStatus.PENDING) {
-    throw createHttpError9(400, "Application already reviewed");
+    throw createHttpError10(400, "Application already reviewed");
   }
   if (payload.status === InstitutionApplicationStatus.APPROVED) {
     if (application.subscriptionPaymentStatus !== SUBSCRIPTION_PAYMENT_STATUS_PAID2) {
-      throw createHttpError9(400, "Subscription payment is pending for this application");
+      throw createHttpError10(400, "Subscription payment is pending for this application");
     }
     if (!application.subscriptionPlan || !application.subscriptionMonths || !application.subscriptionAmount) {
-      throw createHttpError9(400, "Subscription metadata is missing for this application");
+      throw createHttpError10(400, "Subscription metadata is missing for this application");
     }
   }
   if (payload.status === InstitutionApplicationStatus.REJECTED) {
@@ -11043,90 +12134,90 @@ var InstitutionApplicationValidation = {
 };
 
 // src/app/module/institutionApplication/institutionApplication.route.ts
-var router8 = Router8();
-router8.post(
+var router9 = Router9();
+router9.post(
   "/admin/apply",
   requireAdminRole(),
   validateRequest(InstitutionApplicationValidation.createSchema),
   InstitutionApplicationController.create
 );
-router8.get(
+router9.get(
   "/admin/my-applications",
   requireAdminRole(),
   InstitutionApplicationController.myApplications
 );
-router8.get(
+router9.get(
   "/superadmin",
   requireSessionRole("SUPERADMIN"),
   InstitutionApplicationController.listForSuperAdmin
 );
-router8.get(
+router9.get(
   "/superadmin-summary",
   requireSessionRole("SUPERADMIN"),
   InstitutionApplicationController.getSuperAdminSummary
 );
-router8.get(
+router9.get(
   "/pricing",
   InstitutionApplicationController.getSubscriptionPricing
 );
-router8.post(
+router9.post(
   "/admin/:applicationId/subscription/initiate",
   requireAdminRole(),
   validateRequest(InstitutionApplicationValidation.initiateSubscriptionPaymentSchema),
   InstitutionApplicationController.initiateSubscriptionPayment
 );
-router8.get(
+router9.get(
   "/admin/subscription/payment/success",
   InstitutionApplicationController.handleSubscriptionPaymentSuccessRedirect
 );
-router8.get(
+router9.get(
   "/admin/subscription/payment/fail",
   InstitutionApplicationController.handleSubscriptionPaymentFailureRedirect
 );
-router8.get(
+router9.get(
   "/admin/subscription/payment/cancel",
   InstitutionApplicationController.handleSubscriptionPaymentCancelRedirect
 );
-router8.post(
+router9.post(
   "/admin/subscription/payment/success",
   InstitutionApplicationController.handleSubscriptionPaymentSuccessRedirect
 );
-router8.post(
+router9.post(
   "/admin/subscription/payment/fail",
   InstitutionApplicationController.handleSubscriptionPaymentFailureRedirect
 );
-router8.post(
+router9.post(
   "/admin/subscription/payment/cancel",
   InstitutionApplicationController.handleSubscriptionPaymentCancelRedirect
 );
-router8.get(
+router9.get(
   "/superadmin/fee-payments",
   requireSessionRole("SUPERADMIN"),
   InstitutionApplicationController.listInstitutionStudentPaymentsForSuperAdmin
 );
-router8.get(
+router9.get(
   "/admin/fee-payments",
   requireAdminRole(),
   InstitutionApplicationController.listInstitutionStudentPaymentsForAdmin
 );
-router8.patch(
+router9.patch(
   "/superadmin/:applicationId/review",
   requireSessionRole("SUPERADMIN"),
   validateRequest(InstitutionApplicationValidation.reviewSchema),
   InstitutionApplicationController.review
 );
-var InstitutionApplicationRouter = router8;
+var InstitutionApplicationRouter = router9;
 
 // src/app/module/notice/notice.route.ts
-import { Router as Router9 } from "express";
+import { Router as Router10 } from "express";
 
 // src/app/module/notice/notice.service.ts
-function createHttpError10(statusCode, message) {
+function createHttpError11(statusCode, message) {
   const error = new Error(message);
   error.statusCode = statusCode;
   return error;
 }
-function normalizeSearch4(search) {
+function normalizeSearch5(search) {
   const value = search?.trim();
   return value || void 0;
 }
@@ -11144,7 +12235,7 @@ async function resolveNoticeContext(userId) {
     select: { id: true, role: true }
   });
   if (!user) {
-    throw createHttpError10(404, "User not found");
+    throw createHttpError11(404, "User not found");
   }
   if (user.role === "TEACHER") {
     const teacherProfile = await prisma.teacherProfile.findFirst({
@@ -11153,7 +12244,7 @@ async function resolveNoticeContext(userId) {
       select: { institutionId: true }
     });
     if (!teacherProfile?.institutionId) {
-      throw createHttpError10(403, "Teacher is not assigned to any institution yet");
+      throw createHttpError11(403, "Teacher is not assigned to any institution yet");
     }
     return {
       userId,
@@ -11168,7 +12259,7 @@ async function resolveNoticeContext(userId) {
       select: { institutionId: true }
     });
     if (!studentProfile?.institutionId) {
-      throw createHttpError10(403, "Student is not assigned to any institution yet");
+      throw createHttpError11(403, "Student is not assigned to any institution yet");
     }
     return {
       userId,
@@ -11182,7 +12273,7 @@ async function resolveNoticeContext(userId) {
       select: { institutionId: true, role: true }
     });
     if (!adminProfile?.institutionId) {
-      throw createHttpError10(403, "Admin is not assigned to any institution");
+      throw createHttpError11(403, "Admin is not assigned to any institution");
     }
     const resolvedRole = adminProfile.role === AdminRole.FACULTYADMIN ? "FACULTY" : adminProfile.role === AdminRole.DEPARTMENTADMIN ? "DEPARTMENT" : "ADMIN";
     return {
@@ -11191,7 +12282,7 @@ async function resolveNoticeContext(userId) {
       role: resolvedRole
     };
   }
-  throw createHttpError10(403, "Unsupported role for notices");
+  throw createHttpError11(403, "Unsupported role for notices");
 }
 async function getNoticeByIdForViewer(context, noticeId) {
   const notice = await noticeDelegate().findFirst({
@@ -11234,7 +12325,7 @@ async function getNoticeByIdForViewer(context, noticeId) {
     }
   });
   if (!notice) {
-    throw createHttpError10(404, "Notice not found");
+    throw createHttpError11(404, "Notice not found");
   }
   return {
     id: notice.id,
@@ -11251,7 +12342,7 @@ async function getNoticeByIdForViewer(context, noticeId) {
 }
 var listNotices = async (userId, query) => {
   const context = await resolveNoticeContext(userId);
-  const normalizedSearch = normalizeSearch4(query.search);
+  const normalizedSearch = normalizeSearch5(query.search);
   const notices = await noticeDelegate().findMany({
     where: {
       institutionId: context.institutionId,
@@ -11334,7 +12425,7 @@ var getUnreadCount = async (userId) => {
 var createNotice = async (userId, payload) => {
   const context = await resolveNoticeContext(userId);
   if (!SENDER_ROLES.includes(context.role)) {
-    throw createHttpError10(403, "Only admin, faculty, and department can send notices");
+    throw createHttpError11(403, "Only admin, faculty, and department can send notices");
   }
   const targetRoles = dedupeRoles(payload.targetRoles);
   const createdNotice = await noticeDelegate().create({
@@ -11364,7 +12455,7 @@ var updateNotice = async (userId, noticeId, payload) => {
     }
   });
   if (!existing) {
-    throw createHttpError10(404, "Notice not found");
+    throw createHttpError11(404, "Notice not found");
   }
   await noticeDelegate().update({
     where: {
@@ -11394,7 +12485,7 @@ var deleteNotice = async (userId, noticeId) => {
     }
   });
   if (!existing) {
-    throw createHttpError10(404, "Notice not found");
+    throw createHttpError11(404, "Notice not found");
   }
   await noticeDelegate().delete({
     where: {
@@ -11422,7 +12513,7 @@ var markNoticeAsRead = async (userId, noticeId) => {
     }
   });
   if (!notice) {
-    throw createHttpError10(404, "Notice not found");
+    throw createHttpError11(404, "Notice not found");
   }
   await noticeReadDelegate().upsert({
     where: {
@@ -11622,875 +12713,51 @@ var NoticeValidation = {
 };
 
 // src/app/module/notice/notice.route.ts
-var router9 = Router9();
-router9.get(
+var router10 = Router10();
+router10.get(
   "/",
   requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT", "TEACHER", "STUDENT"),
   validateRequest(NoticeValidation.listNoticesSchema),
   NoticeController.listNotices
 );
-router9.get(
+router10.get(
   "/unread-count",
   requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT", "TEACHER", "STUDENT"),
   NoticeController.getUnreadCount
 );
-router9.post(
+router10.post(
   "/",
   requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT"),
   validateRequest(NoticeValidation.createNoticeSchema),
   NoticeController.createNotice
 );
-router9.patch(
+router10.patch(
   "/:noticeId",
   requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT"),
   validateRequest(NoticeValidation.updateNoticeSchema),
   NoticeController.updateNotice
 );
-router9.delete(
+router10.delete(
   "/:noticeId",
   requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT"),
   validateRequest(NoticeValidation.noticeParamsSchema),
   NoticeController.deleteNotice
 );
-router9.post(
+router10.post(
   "/:noticeId/read",
   requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT", "TEACHER", "STUDENT"),
   validateRequest(NoticeValidation.noticeParamsSchema),
   NoticeController.markNoticeAsRead
 );
-router9.post(
+router10.post(
   "/read-all",
   requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT", "TEACHER", "STUDENT"),
   NoticeController.markAllNoticesAsRead
 );
-var NoticeRouter = router9;
+var NoticeRouter = router10;
 
 // src/app/module/posting/posting.route.ts
-import { Router as Router10 } from "express";
-
-// src/app/module/posting/posting.service.ts
-var DEFAULT_PUBLIC_PAGE_SIZE = 12;
-var MAX_PUBLIC_PAGE_SIZE = 40;
-function createHttpError11(statusCode, message) {
-  const error = new Error(message);
-  error.statusCode = statusCode;
-  return error;
-}
-function isMissingTableError(error) {
-  if (!error || typeof error !== "object") {
-    return false;
-  }
-  const maybeCode = error.code;
-  if (maybeCode === "P2021") {
-    return true;
-  }
-  const maybeMessage = error.message;
-  return typeof maybeMessage === "string" && maybeMessage.includes("does not exist");
-}
-function normalizeSearch5(search) {
-  const value = search?.trim();
-  return value || void 0;
-}
-function normalizePage(value) {
-  if (!value || !Number.isFinite(value) || value < 1) {
-    return 1;
-  }
-  return Math.floor(value);
-}
-function normalizePageSize(value) {
-  if (!value || !Number.isFinite(value) || value < 1) {
-    return DEFAULT_PUBLIC_PAGE_SIZE;
-  }
-  return Math.min(Math.floor(value), MAX_PUBLIC_PAGE_SIZE);
-}
-function normalizePublicSort(sort) {
-  switch (sort) {
-    case "oldest":
-      return "oldest";
-    case "title_asc":
-      return "title_asc";
-    case "title_desc":
-      return "title_desc";
-    default:
-      return "newest";
-  }
-}
-function getPublicPostingOrderBy(sort) {
-  if (sort === "oldest") {
-    return { createdAt: "asc" };
-  }
-  if (sort === "title_asc") {
-    return { title: "asc" };
-  }
-  if (sort === "title_desc") {
-    return { title: "desc" };
-  }
-  return { createdAt: "desc" };
-}
-function buildPublicPostingWhere(search, location, department) {
-  const normalizedSearch = normalizeSearch5(search);
-  const normalizedLocation = normalizeSearch5(location);
-  const normalizedDepartment = normalizeSearch5(department);
-  const where = {};
-  if (normalizedSearch) {
-    where.OR = [
-      { title: { contains: normalizedSearch, mode: "insensitive" } },
-      { summary: { contains: normalizedSearch, mode: "insensitive" } },
-      { location: { contains: normalizedSearch, mode: "insensitive" } },
-      { institution: { name: { contains: normalizedSearch, mode: "insensitive" } } },
-      { department: { fullName: { contains: normalizedSearch, mode: "insensitive" } } },
-      { program: { title: { contains: normalizedSearch, mode: "insensitive" } } }
-    ];
-  }
-  if (normalizedLocation) {
-    where.location = { contains: normalizedLocation, mode: "insensitive" };
-  }
-  if (normalizedDepartment) {
-    where.department = {
-      fullName: {
-        contains: normalizedDepartment,
-        mode: "insensitive"
-      }
-    };
-  }
-  return where;
-}
-function buildPostingMedia(institutionLogo) {
-  const fallbackBanner = "/biddyaloycover.webp";
-  const fallbackLogo = "/logo/BidyaloylogoIconOnly.svg";
-  return [institutionLogo, fallbackBanner, fallbackLogo].filter(
-    (item) => Boolean(item)
-  );
-}
-function toPublicPostingItem(post, maps, postingType) {
-  const institution = maps.institutionMap.get(post.institutionId);
-  const faculty = post.facultyId ? maps.facultyMap.get(post.facultyId) : null;
-  const department = post.departmentId ? maps.departmentMap.get(post.departmentId) : null;
-  const program = post.programId ? maps.programMap.get(post.programId) : null;
-  const scoreSeed = post.title.length + post.summary.length;
-  const rating = Number((3.8 + scoreSeed % 12 / 10).toFixed(1));
-  return {
-    id: post.id,
-    postingType,
-    title: post.title,
-    summary: post.summary,
-    details: post.details,
-    location: post.location,
-    createdAt: post.createdAt,
-    updatedAt: post.updatedAt,
-    institution: institution?.name ?? "Unknown institution",
-    institutionShortName: institution?.shortName ?? null,
-    institutionLogo: institution?.institutionLogo ?? null,
-    facultyName: faculty?.fullName ?? null,
-    departmentName: department?.fullName ?? null,
-    programTitle: program?.title ?? null,
-    media: buildPostingMedia(institution?.institutionLogo ?? null),
-    status: "Open",
-    rating,
-    reviewCount: 16 + scoreSeed % 41
-  };
-}
-async function resolveAdminContext(userId) {
-  const adminProfile = await prisma.adminProfile.findUnique({
-    where: {
-      userId
-    },
-    select: {
-      role: true,
-      institutionId: true
-    }
-  });
-  if (!adminProfile?.institutionId) {
-    throw createHttpError11(403, "Only admin users under an institution can manage postings");
-  }
-  return adminProfile;
-}
-async function resolveInstitutionAdminScopedIds(context, payload) {
-  if (!payload.facultyId || !payload.departmentId) {
-    throw createHttpError11(
-      400,
-      "Institution admin must provide facultyId and departmentId"
-    );
-  }
-  const faculty = await prisma.faculty.findFirst({
-    where: {
-      id: payload.facultyId,
-      institutionId: context.institutionId
-    },
-    select: {
-      id: true
-    }
-  });
-  if (!faculty) {
-    throw createHttpError11(404, "Faculty not found for this institution");
-  }
-  const department = await prisma.department.findFirst({
-    where: {
-      id: payload.departmentId,
-      facultyId: payload.facultyId,
-      faculty: {
-        institutionId: context.institutionId
-      }
-    },
-    select: {
-      id: true
-    }
-  });
-  if (!department) {
-    throw createHttpError11(404, "Department not found under selected faculty");
-  }
-  return {
-    institutionId: context.institutionId,
-    facultyId: payload.facultyId,
-    departmentId: payload.departmentId,
-    programId: null
-  };
-}
-async function resolveFacultyAdminScopedIds(context, payload) {
-  if (!payload.departmentId) {
-    throw createHttpError11(400, "Faculty admin must provide departmentId");
-  }
-  const department = await prisma.department.findFirst({
-    where: {
-      id: payload.departmentId,
-      faculty: {
-        institutionId: context.institutionId
-      }
-    },
-    select: {
-      id: true,
-      facultyId: true
-    }
-  });
-  if (!department) {
-    throw createHttpError11(404, "Department not found for this institution");
-  }
-  if (!department.facultyId) {
-    throw createHttpError11(400, "Department is not assigned to a faculty");
-  }
-  return {
-    institutionId: context.institutionId,
-    facultyId: department.facultyId,
-    departmentId: department.id,
-    programId: null
-  };
-}
-async function resolveDepartmentAdminScopedIds(context) {
-  const departments = await prisma.department.findMany({
-    where: {
-      faculty: {
-        institutionId: context.institutionId
-      }
-    },
-    select: {
-      id: true,
-      facultyId: true
-    },
-    take: 2,
-    orderBy: {
-      createdAt: "asc"
-    }
-  });
-  if (departments.length === 0) {
-    throw createHttpError11(404, "Department not found for this institution");
-  }
-  if (departments.length > 1) {
-    throw createHttpError11(400, "Multiple departments found. Contact institution admin to resolve mapping");
-  }
-  return {
-    institutionId: context.institutionId,
-    facultyId: departments[0].facultyId,
-    departmentId: departments[0].id,
-    programId: null
-  };
-}
-async function resolveScopedIds(userId, payload) {
-  const context = await resolveAdminContext(userId);
-  if (context.role === AdminRole.INSTITUTIONADMIN) {
-    return resolveInstitutionAdminScopedIds(context, payload);
-  }
-  if (context.role === AdminRole.FACULTYADMIN) {
-    return resolveFacultyAdminScopedIds(context, payload);
-  }
-  if (context.role === AdminRole.DEPARTMENTADMIN) {
-    return resolveDepartmentAdminScopedIds(context);
-  }
-  throw createHttpError11(403, "Unsupported admin role for posting management");
-}
-var createTeacherJobPost = async (userId, payload) => {
-  const scoped = await resolveScopedIds(userId, payload);
-  return prisma.teacherJobPost.create({
-    data: {
-      title: payload.title.trim(),
-      location: payload.location?.trim() || null,
-      summary: payload.summary.trim(),
-      details: payload.details?.map((item) => item.trim()).filter(Boolean) ?? [],
-      institutionId: scoped.institutionId,
-      facultyId: scoped.facultyId,
-      departmentId: scoped.departmentId,
-      programId: scoped.programId,
-      createdByUserId: userId
-    }
-  });
-};
-var createStudentAdmissionPost = async (userId, payload) => {
-  const scoped = await resolveScopedIds(userId, payload);
-  return prisma.studentAdmissionPost.create({
-    data: {
-      title: payload.title.trim(),
-      location: payload.location?.trim() || null,
-      summary: payload.summary.trim(),
-      details: payload.details?.map((item) => item.trim()).filter(Boolean) ?? [],
-      institutionId: scoped.institutionId,
-      facultyId: scoped.facultyId,
-      departmentId: scoped.departmentId,
-      programId: scoped.programId,
-      createdByUserId: userId
-    }
-  });
-};
-var toPostingUpdateData = (payload) => ({
-  title: payload.title?.trim(),
-  location: payload.location?.trim() || void 0,
-  summary: payload.summary?.trim(),
-  details: payload.details?.map((item) => item.trim()).filter(Boolean)
-});
-var listTeacherJobPostsManaged = async (userId, search) => {
-  const context = await resolveAdminContext(userId);
-  const normalizedSearch = normalizeSearch5(search);
-  const posts = await prisma.teacherJobPost.findMany({
-    where: {
-      institutionId: context.institutionId,
-      ...normalizedSearch ? {
-        OR: [
-          { title: { contains: normalizedSearch, mode: "insensitive" } },
-          { summary: { contains: normalizedSearch, mode: "insensitive" } },
-          { location: { contains: normalizedSearch, mode: "insensitive" } }
-        ]
-      } : {}
-    },
-    orderBy: {
-      createdAt: "desc"
-    }
-  });
-  const maps = await buildLookupMaps(posts);
-  return posts.map((post) => {
-    const institution = maps.institutionMap.get(post.institutionId);
-    const faculty = post.facultyId ? maps.facultyMap.get(post.facultyId) : null;
-    const department = post.departmentId ? maps.departmentMap.get(post.departmentId) : null;
-    const program = post.programId ? maps.programMap.get(post.programId) : null;
-    return {
-      id: post.id,
-      title: post.title,
-      summary: post.summary,
-      details: post.details,
-      location: post.location,
-      createdAt: post.createdAt,
-      updatedAt: post.updatedAt,
-      institution: institution?.name ?? "Unknown institution",
-      institutionShortName: institution?.shortName ?? null,
-      institutionLogo: institution?.institutionLogo ?? null,
-      facultyName: faculty?.fullName ?? null,
-      departmentName: department?.fullName ?? null,
-      programTitle: program?.title ?? null
-    };
-  });
-};
-var listStudentAdmissionPostsManaged = async (userId, search) => {
-  const context = await resolveAdminContext(userId);
-  const normalizedSearch = normalizeSearch5(search);
-  const posts = await prisma.studentAdmissionPost.findMany({
-    where: {
-      institutionId: context.institutionId,
-      ...normalizedSearch ? {
-        OR: [
-          { title: { contains: normalizedSearch, mode: "insensitive" } },
-          { summary: { contains: normalizedSearch, mode: "insensitive" } },
-          { location: { contains: normalizedSearch, mode: "insensitive" } }
-        ]
-      } : {}
-    },
-    orderBy: {
-      createdAt: "desc"
-    }
-  });
-  const maps = await buildLookupMaps(posts);
-  return posts.map((post) => {
-    const institution = maps.institutionMap.get(post.institutionId);
-    const faculty = post.facultyId ? maps.facultyMap.get(post.facultyId) : null;
-    const department = post.departmentId ? maps.departmentMap.get(post.departmentId) : null;
-    const program = post.programId ? maps.programMap.get(post.programId) : null;
-    return {
-      id: post.id,
-      title: post.title,
-      summary: post.summary,
-      details: post.details,
-      location: post.location,
-      createdAt: post.createdAt,
-      updatedAt: post.updatedAt,
-      institution: institution?.name ?? "Unknown institution",
-      institutionShortName: institution?.shortName ?? null,
-      institutionLogo: institution?.institutionLogo ?? null,
-      facultyName: faculty?.fullName ?? null,
-      departmentName: department?.fullName ?? null,
-      programTitle: program?.title ?? null
-    };
-  });
-};
-var updateTeacherJobPost = async (userId, postingId, payload) => {
-  const context = await resolveAdminContext(userId);
-  const existing = await prisma.teacherJobPost.findUnique({
-    where: {
-      id: postingId
-    },
-    select: {
-      id: true,
-      institutionId: true
-    }
-  });
-  if (existing?.institutionId !== context.institutionId) {
-    throw createHttpError11(404, "Teacher job post not found");
-  }
-  return prisma.teacherJobPost.update({
-    where: {
-      id: postingId
-    },
-    data: toPostingUpdateData(payload)
-  });
-};
-var updateStudentAdmissionPost = async (userId, postingId, payload) => {
-  const context = await resolveAdminContext(userId);
-  const existing = await prisma.studentAdmissionPost.findUnique({
-    where: {
-      id: postingId
-    },
-    select: {
-      id: true,
-      institutionId: true
-    }
-  });
-  if (existing?.institutionId !== context.institutionId) {
-    throw createHttpError11(404, "Student admission post not found");
-  }
-  return prisma.studentAdmissionPost.update({
-    where: {
-      id: postingId
-    },
-    data: toPostingUpdateData(payload)
-  });
-};
-var deleteTeacherJobPost = async (userId, postingId) => {
-  const context = await resolveAdminContext(userId);
-  const existing = await prisma.teacherJobPost.findUnique({
-    where: {
-      id: postingId
-    },
-    select: {
-      id: true,
-      institutionId: true
-    }
-  });
-  if (existing?.institutionId !== context.institutionId) {
-    throw createHttpError11(404, "Teacher job post not found");
-  }
-  await prisma.teacherJobPost.delete({
-    where: {
-      id: postingId
-    }
-  });
-  return {
-    id: postingId
-  };
-};
-var deleteStudentAdmissionPost = async (userId, postingId) => {
-  const context = await resolveAdminContext(userId);
-  const existing = await prisma.studentAdmissionPost.findUnique({
-    where: {
-      id: postingId
-    },
-    select: {
-      id: true,
-      institutionId: true
-    }
-  });
-  if (existing?.institutionId !== context.institutionId) {
-    throw createHttpError11(404, "Student admission post not found");
-  }
-  await prisma.studentAdmissionPost.delete({
-    where: {
-      id: postingId
-    }
-  });
-  return {
-    id: postingId
-  };
-};
-async function buildLookupMaps(posts) {
-  const institutionIds = Array.from(new Set(posts.map((item) => item.institutionId)));
-  const facultyIds = Array.from(
-    new Set(posts.map((item) => item.facultyId).filter((item) => Boolean(item)))
-  );
-  const departmentIds = Array.from(
-    new Set(posts.map((item) => item.departmentId).filter((item) => Boolean(item)))
-  );
-  const programIds = Array.from(
-    new Set(posts.map((item) => item.programId).filter((item) => Boolean(item)))
-  );
-  const [institutions, faculties, departments, programs] = await Promise.all([
-    institutionIds.length ? prisma.institution.findMany({
-      where: {
-        id: {
-          in: institutionIds
-        }
-      },
-      select: {
-        id: true,
-        name: true,
-        institutionLogo: true,
-        shortName: true
-      }
-    }) : Promise.resolve([]),
-    facultyIds.length ? prisma.faculty.findMany({
-      where: {
-        id: {
-          in: facultyIds
-        }
-      },
-      select: {
-        id: true,
-        fullName: true
-      }
-    }) : Promise.resolve([]),
-    departmentIds.length ? prisma.department.findMany({
-      where: {
-        id: {
-          in: departmentIds
-        }
-      },
-      select: {
-        id: true,
-        fullName: true
-      }
-    }) : Promise.resolve([]),
-    programIds.length ? prisma.program.findMany({
-      where: {
-        id: {
-          in: programIds
-        }
-      },
-      select: {
-        id: true,
-        title: true,
-        departmentId: true
-      }
-    }) : Promise.resolve([])
-  ]);
-  return {
-    institutionMap: new Map(institutions.map((item) => [item.id, item])),
-    facultyMap: new Map(faculties.map((item) => [item.id, item])),
-    departmentMap: new Map(departments.map((item) => [item.id, item])),
-    programMap: new Map(programs.map((item) => [item.id, item]))
-  };
-}
-var listTeacherJobPostsPublic = async (options = {}) => {
-  let posts;
-  const page = normalizePage(options.page);
-  const pageSize = normalizePageSize(options.pageSize ?? options.limit);
-  const sort = normalizePublicSort(options.sort);
-  const where = buildPublicPostingWhere(options.search, options.location);
-  try {
-    posts = await prisma.teacherJobPost.findMany({
-      where,
-      orderBy: getPublicPostingOrderBy(sort),
-      skip: (page - 1) * pageSize,
-      take: pageSize
-    });
-  } catch (error) {
-    if (isMissingTableError(error)) {
-      return [];
-    }
-    throw error;
-  }
-  const maps = await buildLookupMaps(posts);
-  return posts.map(
-    (post) => toPublicPostingItem(post, maps, "teacher")
-  );
-};
-var listStudentAdmissionPostsPublic = async (options = {}) => {
-  let posts;
-  const page = normalizePage(options.page);
-  const pageSize = normalizePageSize(options.pageSize ?? options.limit);
-  const sort = normalizePublicSort(options.sort);
-  const where = buildPublicPostingWhere(options.search, options.location);
-  try {
-    posts = await prisma.studentAdmissionPost.findMany({
-      where,
-      orderBy: getPublicPostingOrderBy(sort),
-      skip: (page - 1) * pageSize,
-      take: pageSize
-    });
-  } catch (error) {
-    if (isMissingTableError(error)) {
-      return [];
-    }
-    throw error;
-  }
-  const maps = await buildLookupMaps(posts);
-  return posts.map(
-    (post) => toPublicPostingItem(post, maps, "student")
-  );
-};
-var listPublicExplorePostings = async (query) => {
-  const page = normalizePage(query.page);
-  const pageSize = normalizePageSize(query.pageSize);
-  const sort = normalizePublicSort(query.sort);
-  const where = buildPublicPostingWhere(query.search, query.location, query.department);
-  let posts = [];
-  let total = 0;
-  try {
-    if (query.type === "student") {
-      const [count, rows] = await Promise.all([
-        prisma.studentAdmissionPost.count({ where }),
-        prisma.studentAdmissionPost.findMany({
-          where,
-          orderBy: getPublicPostingOrderBy(sort),
-          skip: (page - 1) * pageSize,
-          take: pageSize
-        })
-      ]);
-      total = count;
-      posts = rows;
-    } else {
-      const [count, rows] = await Promise.all([
-        prisma.teacherJobPost.count({ where }),
-        prisma.teacherJobPost.findMany({
-          where,
-          orderBy: getPublicPostingOrderBy(sort),
-          skip: (page - 1) * pageSize,
-          take: pageSize
-        })
-      ]);
-      total = count;
-      posts = rows;
-    }
-  } catch (error) {
-    if (isMissingTableError(error)) {
-      return {
-        type: query.type,
-        sort,
-        pagination: {
-          page,
-          pageSize,
-          total: 0,
-          totalPages: 0
-        },
-        filters: {
-          locations: [],
-          departments: []
-        },
-        items: []
-      };
-    }
-    throw error;
-  }
-  const maps = await buildLookupMaps(posts);
-  const items = posts.map((post) => toPublicPostingItem(post, maps, query.type));
-  const locations = Array.from(
-    new Set(items.map((item) => item.location).filter((item) => Boolean(item)))
-  ).slice(0, 20);
-  const departments = Array.from(
-    new Set(items.map((item) => item.departmentName).filter((item) => Boolean(item)))
-  ).slice(0, 20);
-  return {
-    type: query.type,
-    sort,
-    pagination: {
-      page,
-      pageSize,
-      total,
-      totalPages: total > 0 ? Math.ceil(total / pageSize) : 0
-    },
-    filters: {
-      locations,
-      departments
-    },
-    items
-  };
-};
-function buildRelatedPostingWhere(post) {
-  return {
-    id: { not: post.id },
-    OR: [
-      { institutionId: post.institutionId },
-      ...post.departmentId ? [{ departmentId: post.departmentId }] : [],
-      ...post.programId ? [{ programId: post.programId }] : []
-    ]
-  };
-}
-async function loadStudentPostingWithRelated(postingId) {
-  const post = await prisma.studentAdmissionPost.findUnique({ where: { id: postingId } });
-  if (!post) {
-    return { post: null, related: [] };
-  }
-  const related = await prisma.studentAdmissionPost.findMany({
-    where: buildRelatedPostingWhere(post),
-    orderBy: {
-      createdAt: "desc"
-    },
-    take: 4
-  });
-  return { post, related };
-}
-async function loadTeacherPostingWithRelated(postingId) {
-  const post = await prisma.teacherJobPost.findUnique({ where: { id: postingId } });
-  if (!post) {
-    return { post: null, related: [] };
-  }
-  const related = await prisma.teacherJobPost.findMany({
-    where: buildRelatedPostingWhere(post),
-    orderBy: {
-      createdAt: "desc"
-    },
-    take: 4
-  });
-  return { post, related };
-}
-async function loadPostingWithRelated(postingType, postingId) {
-  if (postingType === "student") {
-    return loadStudentPostingWithRelated(postingId);
-  }
-  return loadTeacherPostingWithRelated(postingId);
-}
-var getPublicPostingDetails = async (postingType, postingId) => {
-  let data;
-  try {
-    data = await loadPostingWithRelated(postingType, postingId);
-  } catch (error) {
-    if (isMissingTableError(error)) {
-      throw createHttpError11(404, "Posting not found");
-    }
-    throw error;
-  }
-  if (!data.post) {
-    throw createHttpError11(404, "Posting not found");
-  }
-  const maps = await buildLookupMaps([data.post, ...data.related]);
-  const details = toPublicPostingItem(data.post, maps, postingType);
-  const relatedItems = data.related.map((item) => toPublicPostingItem(item, maps, postingType));
-  return {
-    ...details,
-    overview: details.summary,
-    keyInfo: [
-      { label: "Institution", value: details.institution },
-      { label: "Department", value: details.departmentName ?? "N/A" },
-      { label: "Program", value: details.programTitle ?? "N/A" },
-      { label: "Location", value: details.location ?? "Not specified" },
-      { label: "Posted", value: details.createdAt.toISOString() },
-      { label: "Status", value: details.status }
-    ],
-    reviews: {
-      averageRating: details.rating,
-      totalReviews: details.reviewCount,
-      highlights: [
-        "Clear requirements and role expectations",
-        "Responsive institution onboarding process",
-        "Strong role-based workflow support"
-      ]
-    },
-    relatedItems
-  };
-};
-var getPostingOptions = async (userId, search) => {
-  const context = await resolveAdminContext(userId);
-  const normalizedSearch = normalizeSearch5(search);
-  if (context.role === AdminRole.INSTITUTIONADMIN) {
-    const [faculties, departments] = await Promise.all([
-      prisma.faculty.findMany({
-        where: {
-          institutionId: context.institutionId,
-          ...normalizedSearch ? {
-            OR: [{ fullName: { contains: normalizedSearch, mode: "insensitive" } }]
-          } : {}
-        },
-        select: {
-          id: true,
-          fullName: true
-        },
-        orderBy: {
-          fullName: "asc"
-        }
-      }),
-      prisma.department.findMany({
-        where: {
-          faculty: {
-            institutionId: context.institutionId
-          },
-          ...normalizedSearch ? {
-            OR: [{ fullName: { contains: normalizedSearch, mode: "insensitive" } }]
-          } : {}
-        },
-        select: {
-          id: true,
-          fullName: true,
-          facultyId: true
-        },
-        orderBy: {
-          fullName: "asc"
-        }
-      })
-    ]);
-    return {
-      faculties,
-      departments
-    };
-  }
-  if (context.role === AdminRole.FACULTYADMIN) {
-    const departments = await prisma.department.findMany({
-      where: {
-        faculty: {
-          institutionId: context.institutionId
-        },
-        ...normalizedSearch ? {
-          OR: [{ fullName: { contains: normalizedSearch, mode: "insensitive" } }]
-        } : {}
-      },
-      select: {
-        id: true,
-        fullName: true,
-        facultyId: true
-      },
-      orderBy: {
-        fullName: "asc"
-      }
-    });
-    return {
-      faculties: [],
-      departments
-    };
-  }
-  if (context.role === AdminRole.DEPARTMENTADMIN) {
-    return {
-      faculties: [],
-      departments: []
-    };
-  }
-  throw createHttpError11(403, "Unsupported admin role for posting options");
-};
-var PostingService = {
-  createTeacherJobPost,
-  createStudentAdmissionPost,
-  listTeacherJobPostsPublic,
-  listStudentAdmissionPostsPublic,
-  listPublicExplorePostings,
-  getPublicPostingDetails,
-  getPostingOptions,
-  listTeacherJobPostsManaged,
-  listStudentAdmissionPostsManaged,
-  updateTeacherJobPost,
-  updateStudentAdmissionPost,
-  deleteTeacherJobPost,
-  deleteStudentAdmissionPost
-};
+import { Router as Router11 } from "express";
 
 // src/app/module/posting/posting.controller.ts
 var readLimit = (value) => {
@@ -12762,84 +13029,84 @@ var PostingValidation = {
 };
 
 // src/app/module/posting/posting.route.ts
-var router10 = Router10();
-router10.get(
+var router11 = Router11();
+router11.get(
   "/public/explore",
   validateRequest(PostingValidation.listPublicExplorePostingSchema),
   PostingController.listPublicExplorePostings
 );
-router10.get(
+router11.get(
   "/public/:postingType/:postingId",
   validateRequest(PostingValidation.publicPostingDetailsParamsSchema),
   PostingController.getPublicPostingDetails
 );
-router10.get(
+router11.get(
   "/teacher/public",
   validateRequest(PostingValidation.listPublicPostingSchema),
   PostingController.listTeacherJobPostsPublic
 );
-router10.get(
+router11.get(
   "/student/public",
   validateRequest(PostingValidation.listPublicPostingSchema),
   PostingController.listStudentAdmissionPostsPublic
 );
-router10.get(
+router11.get(
   "/options",
   requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT"),
   PostingController.getPostingOptions
 );
-router10.get(
+router11.get(
   "/teacher/manage",
   requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT"),
   validateRequest(PostingValidation.listManagedPostingSchema),
   PostingController.listTeacherJobPostsManaged
 );
-router10.get(
+router11.get(
   "/student/manage",
   requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT"),
   validateRequest(PostingValidation.listManagedPostingSchema),
   PostingController.listStudentAdmissionPostsManaged
 );
-router10.post(
+router11.post(
   "/teacher",
   requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT"),
   validateRequest(PostingValidation.createPostingSchema),
   PostingController.createTeacherJobPost
 );
-router10.post(
+router11.post(
   "/student",
   requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT"),
   validateRequest(PostingValidation.createPostingSchema),
   PostingController.createStudentAdmissionPost
 );
-router10.patch(
+router11.patch(
   "/teacher/:postingId",
   requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT"),
   validateRequest(PostingValidation.updatePostingSchema),
   PostingController.updateTeacherJobPost
 );
-router10.patch(
+router11.patch(
   "/student/:postingId",
   requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT"),
   validateRequest(PostingValidation.updatePostingSchema),
   PostingController.updateStudentAdmissionPost
 );
-router10.delete(
+router11.delete(
   "/teacher/:postingId",
   requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT"),
   validateRequest(PostingValidation.postingIdParamSchema),
   PostingController.deleteTeacherJobPost
 );
-router10.delete(
+router11.delete(
   "/student/:postingId",
   requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT"),
   validateRequest(PostingValidation.postingIdParamSchema),
   PostingController.deleteStudentAdmissionPost
 );
-var PostingRouter = router10;
+var PostingRouter = router11;
 
 // src/app/module/routine/routine.route.ts
-import { Router as Router11 } from "express";
+import { Router as Router12 } from "express";
 
 // src/app/module/routine/routine.service.ts
 function createHttpError12(statusCode, message) {
@@ -13007,17 +13274,17 @@ var RoutineValidation = {
 };
 
 // src/app/module/routine/routine.route.ts
-var router11 = Router11();
-router11.get(
+var router12 = Router12();
+router12.get(
   "/",
   requireSessionRole("SUPERADMIN", "ADMIN", "FACULTY", "DEPARTMENT", "TEACHER", "STUDENT"),
   validateRequest(RoutineValidation.listRoutinesSchema),
   RoutineController.listRoutines
 );
-var RoutineRouter = router11;
+var RoutineRouter = router12;
 
 // src/app/module/student/student.route.ts
-import { Router as Router12 } from "express";
+import { Router as Router13 } from "express";
 
 // src/app/module/student/student.service.ts
 var LAB_MARKS_MAX = {
@@ -15007,111 +15274,111 @@ var StudentValidation = {
 };
 
 // src/app/module/student/student.route.ts
-var router12 = Router12();
-router12.get("/profile", requireSessionRole("STUDENT"), StudentController.getProfileOverview);
-router12.get(
+var router13 = Router13();
+router13.get("/profile", requireSessionRole("STUDENT"), StudentController.getProfileOverview);
+router13.get(
   "/application-profile",
   requireSessionRole("STUDENT"),
   StudentController.getApplicationProfile
 );
-router12.post(
+router13.post(
   "/application-profile",
   requireSessionRole("STUDENT"),
   validateRequest(StudentValidation.createStudentApplicationProfileSchema),
   StudentController.createApplicationProfile
 );
-router12.patch(
+router13.patch(
   "/application-profile",
   requireSessionRole("STUDENT"),
   validateRequest(StudentValidation.updateStudentApplicationProfileSchema),
   StudentController.updateApplicationProfile
 );
-router12.delete(
+router13.delete(
   "/application-profile",
   requireSessionRole("STUDENT"),
   StudentController.deleteApplicationProfile
 );
-router12.post(
+router13.post(
   "/admission-applications/:postingId",
   requireSessionRole("STUDENT"),
   validateRequest(StudentValidation.createAdmissionApplicationSchema),
   StudentController.applyToAdmissionPosting
 );
-router12.get(
+router13.get(
   "/admission-applications",
   requireSessionRole("STUDENT"),
   StudentController.listMyAdmissionApplications
 );
-router12.patch(
+router13.patch(
   "/profile",
   requireSessionRole("STUDENT"),
   validateRequest(StudentValidation.updateProfileSchema),
   StudentController.updateProfile
 );
-router12.get(
+router13.get(
   "/timeline",
   requireSessionRole("STUDENT"),
   validateRequest(StudentValidation.listTimelineSchema),
   StudentController.listTimeline
 );
-router12.get(
+router13.get(
   "/registered-courses",
   requireSessionRole("STUDENT"),
   validateRequest(StudentValidation.listRegisteredCoursesSchema),
   StudentController.listRegisteredCourses
 );
-router12.get(
+router13.get(
   "/routines",
   requireSessionRole("STUDENT"),
   StudentController.listRoutines
 );
-router12.get(
+router13.get(
   "/results",
   requireSessionRole("STUDENT"),
   validateRequest(StudentValidation.listResultsSchema),
   StudentController.listResults
 );
-router12.get(
+router13.get(
   "/submissions",
   requireSessionRole("STUDENT"),
   validateRequest(StudentValidation.listSubmissionsSchema),
   StudentController.listSubmissions
 );
-router12.post(
+router13.post(
   "/submissions",
   requireSessionRole("STUDENT"),
   validateRequest(StudentValidation.createSubmissionSchema),
   StudentController.createSubmission
 );
-router12.patch(
+router13.patch(
   "/submissions/:submissionId",
   requireSessionRole("STUDENT"),
   validateRequest(StudentValidation.updateSubmissionSchema),
   StudentController.updateSubmission
 );
-router12.delete(
+router13.delete(
   "/submissions/:submissionId",
   requireSessionRole("STUDENT"),
   validateRequest(StudentValidation.deleteSubmissionSchema),
   StudentController.deleteSubmission
 );
-router12.get("/fees/payment/success", StudentController.handleFeePaymentSuccessRedirect);
-router12.get("/fees/payment/fail", StudentController.handleFeePaymentFailureRedirect);
-router12.get("/fees/payment/cancel", StudentController.handleFeePaymentCancelRedirect);
-router12.post("/fees/payment/success", StudentController.handleFeePaymentSuccessRedirect);
-router12.post("/fees/payment/fail", StudentController.handleFeePaymentFailureRedirect);
-router12.post("/fees/payment/cancel", StudentController.handleFeePaymentCancelRedirect);
-router12.get("/fees", requireSessionRole("STUDENT"), StudentController.getFeeOverview);
-router12.post(
+router13.get("/fees/payment/success", StudentController.handleFeePaymentSuccessRedirect);
+router13.get("/fees/payment/fail", StudentController.handleFeePaymentFailureRedirect);
+router13.get("/fees/payment/cancel", StudentController.handleFeePaymentCancelRedirect);
+router13.post("/fees/payment/success", StudentController.handleFeePaymentSuccessRedirect);
+router13.post("/fees/payment/fail", StudentController.handleFeePaymentFailureRedirect);
+router13.post("/fees/payment/cancel", StudentController.handleFeePaymentCancelRedirect);
+router13.get("/fees", requireSessionRole("STUDENT"), StudentController.getFeeOverview);
+router13.post(
   "/fees/initiate",
   requireSessionRole("STUDENT"),
   validateRequest(StudentValidation.initiateFeePaymentSchema),
   StudentController.initiateFeePayment
 );
-var StudentRouter = router12;
+var StudentRouter = router13;
 
 // src/app/module/teacher/teacher.route.ts
-import { Router as Router13 } from "express";
+import { Router as Router14 } from "express";
 
 // src/app/module/teacher/teacher.service.ts
 var hasValidAcademicRecords = (records) => {
@@ -16858,130 +17125,130 @@ var TeacherValidation = {
 };
 
 // src/app/module/teacher/teacher.route.ts
-var router13 = Router13();
-router13.get("/profile", requireSessionRole("TEACHER"), TeacherController.getProfileOverview);
-router13.patch(
+var router14 = Router14();
+router14.get("/profile", requireSessionRole("TEACHER"), TeacherController.getProfileOverview);
+router14.patch(
   "/profile",
   requireSessionRole("TEACHER"),
   validateRequest(TeacherValidation.updateProfileSchema),
   TeacherController.updateProfile
 );
-router13.get(
+router14.get(
   "/application-profile",
   requireSessionRole("TEACHER"),
   TeacherController.getApplicationProfile
 );
-router13.post(
+router14.post(
   "/application-profile",
   requireSessionRole("TEACHER"),
   validateRequest(TeacherValidation.createTeacherApplicationProfileSchema),
   TeacherController.createApplicationProfile
 );
-router13.patch(
+router14.patch(
   "/application-profile",
   requireSessionRole("TEACHER"),
   validateRequest(TeacherValidation.updateTeacherApplicationProfileSchema),
   TeacherController.updateApplicationProfile
 );
-router13.delete(
+router14.delete(
   "/application-profile",
   requireSessionRole("TEACHER"),
   TeacherController.deleteApplicationProfile
 );
-router13.post(
+router14.post(
   "/job-applications/:postingId",
   requireSessionRole("TEACHER"),
   validateRequest(TeacherValidation.createJobApplicationSchema),
   TeacherController.applyToTeacherJobPosting
 );
-router13.get(
+router14.get(
   "/job-applications",
   requireSessionRole("TEACHER"),
   TeacherController.listMyJobApplications
 );
-router13.get(
+router14.get(
   "/sections",
   requireSessionRole("TEACHER"),
   TeacherController.listAssignedSectionsWithStudents
 );
-router13.get(
+router14.get(
   "/routines",
   requireSessionRole("TEACHER"),
   TeacherController.listRoutines
 );
-router13.get(
+router14.get(
   "/classworks",
   requireSessionRole("TEACHER"),
   validateRequest(TeacherValidation.listClassworksSchema),
   TeacherController.listClassworks
 );
-router13.post(
+router14.post(
   "/classworks",
   requireSessionRole("TEACHER"),
   validateRequest(TeacherValidation.createClassworkSchema),
   TeacherController.createClasswork
 );
-router13.patch(
+router14.patch(
   "/classworks/:classworkId",
   requireSessionRole("TEACHER"),
   validateRequest(TeacherValidation.updateClassworkSchema),
   TeacherController.updateClasswork
 );
-router13.delete(
+router14.delete(
   "/classworks/:classworkId",
   requireSessionRole("TEACHER"),
   validateRequest(TeacherValidation.deleteClassworkSchema),
   TeacherController.deleteClasswork
 );
-router13.get(
+router14.get(
   "/attendance",
   requireSessionRole("TEACHER"),
   validateRequest(TeacherValidation.getSectionAttendanceSchema),
   TeacherController.getSectionAttendanceForDay
 );
-router13.post(
+router14.post(
   "/attendance",
   requireSessionRole("TEACHER"),
   validateRequest(TeacherValidation.upsertSectionAttendanceSchema),
   TeacherController.upsertSectionAttendanceForDay
 );
-router13.get(
+router14.get(
   "/marks",
   requireSessionRole("TEACHER"),
   validateRequest(TeacherValidation.listSectionMarksSchema),
   TeacherController.listSectionMarks
 );
-router13.post(
+router14.post(
   "/marks/:courseRegistrationId",
   requireSessionRole("TEACHER"),
   validateRequest(TeacherValidation.upsertMarkSchema),
   TeacherController.upsertSectionMark
 );
-router13.get(
+router14.get(
   "/applications",
   requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT"),
   validateRequest(TeacherValidation.listTeacherJobApplicationsSchema),
   TeacherController.listTeacherApplicationsForAdmin
 );
-router13.patch(
+router14.patch(
   "/applications/:applicationId/review",
   requireSessionRole("ADMIN", "FACULTY", "DEPARTMENT"),
   validateRequest(TeacherValidation.reviewTeacherJobApplicationSchema),
   TeacherController.reviewTeacherApplication
 );
-var TeacherRouter = router13;
+var TeacherRouter = router14;
 
 // src/app/module/superadmin/superadmin.route.ts
-import { Router as Router14 } from "express";
+import { Router as Router15 } from "express";
 
 // src/app/module/superadmin/superadmin.service.ts
 var normalizePage2 = (value) => {
-  const parsed = parseInt(value, 10);
-  return isNaN(parsed) || parsed < 1 ? 1 : parsed;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isNaN(parsed) || parsed < 1 ? 1 : parsed;
 };
 var normalizePageSize2 = (value, max = 50) => {
-  const parsed = parseInt(value, 10);
-  if (isNaN(parsed) || parsed < 1) return 20;
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isNaN(parsed) || parsed < 1) return 20;
   return Math.min(parsed, max);
 };
 var listAdmins = async (query) => {
@@ -17204,17 +17471,158 @@ var listTeachers3 = async (query) => {
     }
   };
 };
+var listRecentHighlights = async (query) => {
+  const page = normalizePage2(query.page);
+  const pageSize = normalizePageSize2(query.pageSize, 50);
+  const skip = (page - 1) * pageSize;
+  const take = page * pageSize;
+  const [users, institutionApplications, teacherApplications, studentApplications, counts] = await Promise.all([
+    prisma.user.findMany({
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        createdAt: true
+      },
+      orderBy: { createdAt: query.sort === "asc" ? "asc" : "desc" },
+      take
+    }),
+    prisma.institutionApplication.findMany({
+      select: {
+        id: true,
+        institutionName: true,
+        applicantUser: {
+          select: {
+            name: true,
+            email: true
+          }
+        },
+        createdAt: true
+      },
+      orderBy: { createdAt: query.sort === "asc" ? "asc" : "desc" },
+      take
+    }),
+    prisma.teacherJobApplication.findMany({
+      select: {
+        id: true,
+        posting: {
+          select: {
+            title: true
+          }
+        },
+        teacherUser: {
+          select: {
+            name: true,
+            email: true
+          }
+        },
+        createdAt: true
+      },
+      orderBy: { createdAt: query.sort === "asc" ? "asc" : "desc" },
+      take
+    }),
+    prisma.studentAdmissionApplication.findMany({
+      select: {
+        id: true,
+        posting: {
+          select: {
+            title: true
+          }
+        },
+        studentUser: {
+          select: {
+            name: true,
+            email: true
+          }
+        },
+        createdAt: true
+      },
+      orderBy: { createdAt: query.sort === "asc" ? "asc" : "desc" },
+      take
+    }),
+    Promise.all([
+      prisma.user.count(),
+      prisma.institutionApplication.count(),
+      prisma.teacherJobApplication.count(),
+      prisma.studentAdmissionApplication.count()
+    ])
+  ]);
+  const timeline = [
+    ...users.map((user) => ({
+      id: `user-${user.id}`,
+      type: "USER_REGISTERED",
+      actorName: user.name,
+      actorEmail: user.email,
+      title: `${user.name} registered`,
+      description: `New ${user.role.toLowerCase()} account registration`,
+      createdAt: user.createdAt.toISOString(),
+      createdAtDate: user.createdAt
+    })),
+    ...institutionApplications.map((application) => ({
+      id: `institution-application-${application.id}`,
+      type: "INSTITUTION_APPLICATION",
+      actorName: application.applicantUser.name,
+      actorEmail: application.applicantUser.email,
+      title: `${application.applicantUser.name} submitted institution application`,
+      description: `Institution: ${application.institutionName}`,
+      createdAt: application.createdAt.toISOString(),
+      createdAtDate: application.createdAt
+    })),
+    ...teacherApplications.map((application) => ({
+      id: `teacher-application-${application.id}`,
+      type: "TEACHER_JOB_APPLICATION",
+      actorName: application.teacherUser.name,
+      actorEmail: application.teacherUser.email,
+      title: `${application.teacherUser.name} applied for teacher post`,
+      description: `Post: ${application.posting.title}`,
+      createdAt: application.createdAt.toISOString(),
+      createdAtDate: application.createdAt
+    })),
+    ...studentApplications.map((application) => ({
+      id: `student-application-${application.id}`,
+      type: "STUDENT_ADMISSION_APPLICATION",
+      actorName: application.studentUser.name,
+      actorEmail: application.studentUser.email,
+      title: `${application.studentUser.name} submitted admission application`,
+      description: `Post: ${application.posting.title}`,
+      createdAt: application.createdAt.toISOString(),
+      createdAtDate: application.createdAt
+    }))
+  ];
+  timeline.sort((a, b) => {
+    if (query.sort === "asc") {
+      return a.createdAtDate.getTime() - b.createdAtDate.getTime();
+    }
+    return b.createdAtDate.getTime() - a.createdAtDate.getTime();
+  });
+  const items = timeline.slice(skip, skip + pageSize).map(({ createdAtDate: _, ...item }) => item);
+  const total = counts.reduce((sum, value) => sum + value, 0);
+  const totalPages = Math.ceil(total / pageSize);
+  return {
+    items,
+    pagination: {
+      page,
+      pageSize,
+      total,
+      totalPages,
+      hasNextPage: page < totalPages,
+      hasPreviousPage: page > 1
+    }
+  };
+};
 var SuperAdminService = {
   listAdmins,
   listInstitutions,
   listStudents: listStudents3,
-  listTeachers: listTeachers3
+  listTeachers: listTeachers3,
+  listRecentHighlights
 };
 
 // src/app/module/superadmin/superadmin.controller.ts
 var readPositiveInt2 = (value, defaultValue = 1) => {
-  const parsed = parseInt(value, 10);
-  return isNaN(parsed) || parsed < 1 ? defaultValue : parsed;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isNaN(parsed) || parsed < 1 ? defaultValue : parsed;
 };
 var readQueryValue10 = (value) => {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : void 0;
@@ -17279,54 +17687,75 @@ var listTeachers4 = catchAsync(async (req, res) => {
     data: result
   });
 });
+var listRecentHighlights2 = catchAsync(async (req, res) => {
+  const query = {
+    page: readPositiveInt2(req.query.page, 1),
+    pageSize: readPositiveInt2(req.query.pageSize, 6),
+    sort: req.query.sort === "asc" ? "asc" : "desc"
+  };
+  const result = await SuperAdminService.listRecentHighlights(query);
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Recent highlights fetched successfully",
+    data: result
+  });
+});
 var SuperAdminController = {
   listAdmins: listAdmins2,
   listInstitutions: listInstitutions2,
   listStudents: listStudents4,
-  listTeachers: listTeachers4
+  listTeachers: listTeachers4,
+  listRecentHighlights: listRecentHighlights2
 };
 
 // src/app/module/superadmin/superadmin.route.ts
-var router14 = Router14();
-router14.get(
+var router15 = Router15();
+router15.get(
   "/admins",
   requireSessionRole("SUPERADMIN"),
   SuperAdminController.listAdmins
 );
-router14.get(
+router15.get(
   "/institutions",
   requireSessionRole("SUPERADMIN"),
   SuperAdminController.listInstitutions
 );
-router14.get(
+router15.get(
   "/students",
   requireSessionRole("SUPERADMIN"),
   SuperAdminController.listStudents
 );
-router14.get(
+router15.get(
   "/teachers",
   requireSessionRole("SUPERADMIN"),
   SuperAdminController.listTeachers
 );
-var SuperAdminRouter = router14;
+router15.get(
+  "/recent-highlights",
+  requireSessionRole("SUPERADMIN"),
+  SuperAdminController.listRecentHighlights
+);
+var SuperAdminRouter = router15;
 
 // src/app/routes/index.ts
-var router15 = Router15();
-router15.use("/ai", AIRouter);
-router15.use("/auth", AuthRoutes);
-router15.use("/classrooms", ClassroomRouter);
-router15.use("/department", DepartmentRouter);
-router15.use("/faculty", FacultyProfileRouter);
-router15.use("/institute", InstituteRoutes);
-router15.use("/institution-applications", InstitutionApplicationRouter);
-router15.use("/institution-admin", InstitutionAdminRouter);
-router15.use("/notices", NoticeRouter);
-router15.use("/postings", PostingRouter);
-router15.use("/routines", RoutineRouter);
-router15.use("/superadmin", SuperAdminRouter);
-router15.use("/teacher", TeacherRouter);
-router15.use("/student", StudentRouter);
-var IndexRouters = router15;
+var router16 = Router16();
+router16.use("/ai", AIRouter);
+router16.use("/auth", AuthRoutes);
+router16.use("/classrooms", ClassroomRouter);
+router16.use("/department", DepartmentRouter);
+router16.use("/faculty", FacultyProfileRouter);
+router16.use("/home", HomeRouter);
+router16.use("/institute", InstituteRoutes);
+router16.use("/institution-applications", InstitutionApplicationRouter);
+router16.use("/institution-admin", InstitutionAdminRouter);
+router16.use("/notices", NoticeRouter);
+router16.use("/postings", PostingRouter);
+router16.use("/routines", RoutineRouter);
+router16.use("/superadmin", SuperAdminRouter);
+router16.use("/teacher", TeacherRouter);
+router16.use("/student", StudentRouter);
+var IndexRouters = router16;
 
 // src/app.ts
 var app = express();

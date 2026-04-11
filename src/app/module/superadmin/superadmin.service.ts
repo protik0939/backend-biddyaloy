@@ -74,15 +74,31 @@ export interface TeacherListItem {
   joinedAt: string;
 }
 
+export type HighlightType =
+  | "USER_REGISTERED"
+  | "INSTITUTION_APPLICATION"
+  | "TEACHER_JOB_APPLICATION"
+  | "STUDENT_ADMISSION_APPLICATION";
+
+export interface RecentHighlightItem {
+  id: string;
+  type: HighlightType;
+  actorName: string;
+  actorEmail: string;
+  title: string;
+  description: string;
+  createdAt: string;
+}
+
 // Helper functions
 const normalizePage = (value: any): number => {
-  const parsed = parseInt(value, 10);
-  return isNaN(parsed) || parsed < 1 ? 1 : parsed;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isNaN(parsed) || parsed < 1 ? 1 : parsed;
 };
 
 const normalizePageSize = (value: any, max = 50): number => {
-  const parsed = parseInt(value, 10);
-  if (isNaN(parsed) || parsed < 1) return 20;
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isNaN(parsed) || parsed < 1) return 20;
   return Math.min(parsed, max);
 };
 
@@ -345,9 +361,159 @@ const listTeachers = async (
   };
 };
 
+const listRecentHighlights = async (
+  query: PaginationQuery,
+): Promise<PaginatedResponse<RecentHighlightItem>> => {
+  const page = normalizePage(query.page);
+  const pageSize = normalizePageSize(query.pageSize, 50);
+  const skip = (page - 1) * pageSize;
+  const take = page * pageSize;
+
+  const [users, institutionApplications, teacherApplications, studentApplications, counts] =
+    await Promise.all([
+      prisma.user.findMany({
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: query.sort === "asc" ? "asc" : "desc" },
+        take,
+      }),
+      prisma.institutionApplication.findMany({
+        select: {
+          id: true,
+          institutionName: true,
+          applicantUser: {
+            select: {
+              name: true,
+              email: true,
+            },
+          },
+          createdAt: true,
+        },
+        orderBy: { createdAt: query.sort === "asc" ? "asc" : "desc" },
+        take,
+      }),
+      prisma.teacherJobApplication.findMany({
+        select: {
+          id: true,
+          posting: {
+            select: {
+              title: true,
+            },
+          },
+          teacherUser: {
+            select: {
+              name: true,
+              email: true,
+            },
+          },
+          createdAt: true,
+        },
+        orderBy: { createdAt: query.sort === "asc" ? "asc" : "desc" },
+        take,
+      }),
+      prisma.studentAdmissionApplication.findMany({
+        select: {
+          id: true,
+          posting: {
+            select: {
+              title: true,
+            },
+          },
+          studentUser: {
+            select: {
+              name: true,
+              email: true,
+            },
+          },
+          createdAt: true,
+        },
+        orderBy: { createdAt: query.sort === "asc" ? "asc" : "desc" },
+        take,
+      }),
+      Promise.all([
+        prisma.user.count(),
+        prisma.institutionApplication.count(),
+        prisma.teacherJobApplication.count(),
+        prisma.studentAdmissionApplication.count(),
+      ]),
+    ]);
+
+  const timeline: Array<RecentHighlightItem & { createdAtDate: Date }> = [
+    ...users.map((user) => ({
+      id: `user-${user.id}`,
+      type: "USER_REGISTERED" as const,
+      actorName: user.name,
+      actorEmail: user.email,
+      title: `${user.name} registered`,
+      description: `New ${user.role.toLowerCase()} account registration`,
+      createdAt: user.createdAt.toISOString(),
+      createdAtDate: user.createdAt,
+    })),
+    ...institutionApplications.map((application) => ({
+      id: `institution-application-${application.id}`,
+      type: "INSTITUTION_APPLICATION" as const,
+      actorName: application.applicantUser.name,
+      actorEmail: application.applicantUser.email,
+      title: `${application.applicantUser.name} submitted institution application`,
+      description: `Institution: ${application.institutionName}`,
+      createdAt: application.createdAt.toISOString(),
+      createdAtDate: application.createdAt,
+    })),
+    ...teacherApplications.map((application) => ({
+      id: `teacher-application-${application.id}`,
+      type: "TEACHER_JOB_APPLICATION" as const,
+      actorName: application.teacherUser.name,
+      actorEmail: application.teacherUser.email,
+      title: `${application.teacherUser.name} applied for teacher post`,
+      description: `Post: ${application.posting.title}`,
+      createdAt: application.createdAt.toISOString(),
+      createdAtDate: application.createdAt,
+    })),
+    ...studentApplications.map((application) => ({
+      id: `student-application-${application.id}`,
+      type: "STUDENT_ADMISSION_APPLICATION" as const,
+      actorName: application.studentUser.name,
+      actorEmail: application.studentUser.email,
+      title: `${application.studentUser.name} submitted admission application`,
+      description: `Post: ${application.posting.title}`,
+      createdAt: application.createdAt.toISOString(),
+      createdAtDate: application.createdAt,
+    })),
+  ];
+
+  timeline.sort((a, b) => {
+    if (query.sort === "asc") {
+      return a.createdAtDate.getTime() - b.createdAtDate.getTime();
+    }
+    return b.createdAtDate.getTime() - a.createdAtDate.getTime();
+  });
+
+  const items = timeline.slice(skip, skip + pageSize).map(({ createdAtDate: _, ...item }) => item);
+  const total = counts.reduce((sum, value) => sum + value, 0);
+  const totalPages = Math.ceil(total / pageSize);
+
+  return {
+    items,
+    pagination: {
+      page,
+      pageSize,
+      total,
+      totalPages,
+      hasNextPage: page < totalPages,
+      hasPreviousPage: page > 1,
+    },
+  };
+};
+
 export const SuperAdminService = {
   listAdmins,
   listInstitutions,
   listStudents,
   listTeachers,
+  listRecentHighlights,
 };

@@ -4,8 +4,8 @@ import { sendResponse } from "../../shared/sendResponse";
 import { SuperAdminService, type PaginationQuery } from "./superadmin.service";
 
 const readPositiveInt = (value: any, defaultValue = 1): number => {
-  const parsed = parseInt(value, 10);
-  return isNaN(parsed) || parsed < 1 ? defaultValue : parsed;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isNaN(parsed) || parsed < 1 ? defaultValue : parsed;
 };
 
 const readQueryValue = (value: any): string | undefined => {
@@ -84,9 +84,27 @@ const listTeachers = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const listRecentHighlights = catchAsync(async (req: Request, res: Response) => {
+  const query: PaginationQuery = {
+    page: readPositiveInt(req.query.page, 1),
+    pageSize: readPositiveInt(req.query.pageSize, 6),
+    sort: req.query.sort === "asc" ? "asc" : "desc",
+  };
+
+  const result = await SuperAdminService.listRecentHighlights(query);
+
+  sendResponse(res, {
+    httpStatusCode: 200,
+    success: true,
+    message: "Recent highlights fetched successfully",
+    data: result,
+  });
+});
+
 export const SuperAdminController = {
   listAdmins,
   listInstitutions,
   listStudents,
   listTeachers,
+  listRecentHighlights,
 };

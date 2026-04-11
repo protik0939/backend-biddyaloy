@@ -707,6 +707,12 @@ const getSuperAdminSummary = async (userId: string) => {
     activeSessions,
     newSignupsLast7Days,
     newSignupsPrevious7Days,
+    newStudentsLast7Days,
+    newStudentsPrevious7Days,
+    newTeachersLast7Days,
+    newTeachersPrevious7Days,
+    newStaffLast7Days,
+    newStaffPrevious7Days,
     newInstitutionsThisMonth,
     newAdmissionsThisMonth,
     pendingTeacherApprovals,
@@ -725,9 +731,9 @@ const getSuperAdminSummary = async (userId: string) => {
       },
     }),
     prisma.institution.count(),
-    prisma.studentProfile.count(),
-    prisma.teacherProfile.count(),
-    prisma.adminProfile.count(),
+    prisma.user.count({ where: { role: "STUDENT" } }),
+    prisma.user.count({ where: { role: "TEACHER" } }),
+    prisma.user.count({ where: { role: { in: ["ADMIN", "SUPERADMIN"] } } }),
     prisma.institutionApplication.count({
       where: {
         status: InstitutionApplicationStatus.PENDING,
@@ -768,6 +774,61 @@ const getSuperAdminSummary = async (userId: string) => {
         },
       },
     }),
+    prisma.user.count({
+      where: {
+        role: "STUDENT",
+        createdAt: {
+          gte: sevenDaysAgo,
+        },
+      },
+    }),
+    prisma.user.count({
+      where: {
+        role: "STUDENT",
+        createdAt: {
+          gte: fourteenDaysAgo,
+          lt: sevenDaysAgo,
+        },
+      },
+    }),
+    prisma.user.count({
+      where: {
+        role: "TEACHER",
+        createdAt: {
+          gte: sevenDaysAgo,
+        },
+      },
+    }),
+    prisma.user.count({
+      where: {
+        role: "TEACHER",
+        createdAt: {
+          gte: fourteenDaysAgo,
+          lt: sevenDaysAgo,
+        },
+      },
+    }),
+    prisma.user.count({
+      where: {
+        role: {
+          in: ["ADMIN", "SUPERADMIN"],
+        },
+        createdAt: {
+          gte: sevenDaysAgo,
+        },
+      },
+    }),
+    prisma.user.count({
+      where: {
+        role: {
+          in: ["ADMIN", "SUPERADMIN"],
+        },
+        createdAt: {
+          gte: fourteenDaysAgo,
+          lt: sevenDaysAgo,
+        },
+      },
+    }),
     prisma.institution.count({
       where: {
         createdAt: {
@@ -775,9 +836,9 @@ const getSuperAdminSummary = async (userId: string) => {
         },
       },
     }),
-    prisma.studentProfile.count({
+    prisma.studentAdmissionApplication.count({
       where: {
-        createdAt: {
+        appliedAt: {
           gte: monthStart,
         },
       },
@@ -799,6 +860,21 @@ const getSuperAdminSummary = async (userId: string) => {
   const growthBase = Math.max(newSignupsPrevious7Days, 1);
   const weeklyGrowthPercentage = Number(
     (((newSignupsLast7Days - newSignupsPrevious7Days) / growthBase) * 100).toFixed(2),
+  );
+
+  const studentGrowthBase = Math.max(newStudentsPrevious7Days, 1);
+  const studentGrowthPercentage = Number(
+    (((newStudentsLast7Days - newStudentsPrevious7Days) / studentGrowthBase) * 100).toFixed(2),
+  );
+
+  const teacherGrowthBase = Math.max(newTeachersPrevious7Days, 1);
+  const teacherGrowthPercentage = Number(
+    (((newTeachersLast7Days - newTeachersPrevious7Days) / teacherGrowthBase) * 100).toFixed(2),
+  );
+
+  const staffGrowthBase = Math.max(newStaffPrevious7Days, 1);
+  const staffGrowthPercentage = Number(
+    (((newStaffLast7Days - newStaffPrevious7Days) / staffGrowthBase) * 100).toFixed(2),
   );
 
   const institutionTypeBreakdown = institutionTypeGroups.reduce(
@@ -823,6 +899,9 @@ const getSuperAdminSummary = async (userId: string) => {
       rejectedApplications,
       newSignupsLast7Days,
       weeklyGrowthPercentage,
+      studentGrowthPercentage,
+      teacherGrowthPercentage,
+      staffGrowthPercentage,
       pendingInstitutionVerifications: pendingApplications,
       newInstitutionsThisMonth,
       newAdmissionsThisMonth,
