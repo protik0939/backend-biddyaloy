@@ -728,6 +728,8 @@ const getSuperAdminSummary = async (userId: string) => {
         name: true,
         email: true,
         image: true,
+        createdAt: false,
+        updatedAt: false,
       },
     }),
     prisma.institution.count(),
