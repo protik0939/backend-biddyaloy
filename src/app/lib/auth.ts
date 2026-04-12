@@ -109,10 +109,25 @@ export const auth = betterAuth({
           google: {
             clientId: googleClientId,
             clientSecret: googleClientSecret,
+            prompt: "select_account consent",
+            accessType: "offline",
           },
         },
       }
     : {}),
+  session: {
+    cookieCache: {
+      enabled: false,
+    },
+  },
+  advanced: {
+    cookiePrefix: "better-auth",
+    useSecureCookies: isProduction,
+    crossSubDomainCookies: {
+      enabled: false,
+    },
+    defaultCookieAttributes: cookieAttributes,
+  },
   user: {
     additionalFields: {
       bio: {

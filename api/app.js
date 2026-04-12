@@ -334,6 +334,10 @@ var InstitutionTransferStatus = {
   CANCELLED: "CANCELLED"
 };
 
+// src/app/lib/auth.ts
+import { betterAuth } from "better-auth";
+import { prismaAdapter } from "better-auth/adapters/prisma";
+
 // src/app/lib/prisma.ts
 import path2 from "path";
 import { fileURLToPath as fileURLToPath2 } from "url";
@@ -1116,6 +1120,317 @@ if (!connectionString) {
 var adapter = new PrismaPg({ connectionString: safeConnectionString });
 var prisma = new PrismaClient({ adapter });
 
+// src/app/shared/originPolicy.ts
+var LOCAL_DEV_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"];
+function normalizeOrigin(value) {
+  return value.trim().replace(/\/$/, "");
+}
+function parseOriginList(rawValue) {
+  if (!rawValue) {
+    return [];
+  }
+  return rawValue.split(",").map((item) => normalizeOrigin(item)).filter(Boolean);
+}
+function parsePreviewPattern(rawPattern) {
+  if (!rawPattern) {
+    return null;
+  }
+  try {
+    return new RegExp(rawPattern);
+  } catch {
+    return null;
+  }
+}
+function buildOriginPolicy() {
+  const exactOrigins = /* @__PURE__ */ new Set([
+    ...LOCAL_DEV_ORIGINS,
+    ...parseOriginList(process.env.FRONTEND_PUBLIC_URL),
+    ...parseOriginList(process.env.FRONTEND_ALLOWED_ORIGINS)
+  ]);
+  const previewOriginPattern = parsePreviewPattern(process.env.FRONTEND_PREVIEW_URL_PATTERN);
+  return {
+    exactOrigins,
+    previewOriginPattern,
+    isAllowedOrigin(origin) {
+      const normalizedOrigin = normalizeOrigin(origin);
+      if (exactOrigins.has(normalizedOrigin)) {
+        return true;
+      }
+      if (previewOriginPattern?.test(normalizedOrigin)) {
+        return true;
+      }
+      return false;
+    }
+  };
+}
+function buildTrustedOrigins() {
+  const policy = buildOriginPolicy();
+  const trusted = new Set(policy.exactOrigins);
+  if (process.env.BACKEND_PUBLIC_URL) {
+    trusted.add(normalizeOrigin(process.env.BACKEND_PUBLIC_URL));
+  }
+  return [...trusted];
+}
+
+// src/app/shared/email/sendEmail.ts
+import nodemailer from "nodemailer";
+function getTransporter() {
+  const host = process.env.SMTP_HOST;
+  const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  if (!host || !user || !pass) {
+    return null;
+  }
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: {
+      user,
+      pass
+    }
+  });
+}
+async function sendEmail(payload) {
+  const transporter = getTransporter();
+  const fromAddress = process.env.MAIL_FROM;
+  if (!transporter || !fromAddress) {
+    console.warn(
+      "Email skipped: configure SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS and MAIL_FROM to send emails."
+    );
+    return;
+  }
+  await transporter.sendMail({
+    from: fromAddress,
+    to: payload.to,
+    subject: payload.subject,
+    html: payload.html,
+    text: payload.text
+  });
+}
+
+// src/app/shared/email/buildEmailTemplate.ts
+function escapeHtml(input) {
+  return input.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;").replace(/'/g, "&#039;");
+}
+function buildEmailTemplate(options) {
+  const previewText = options.previewText ? escapeHtml(options.previewText) : "";
+  const heading = escapeHtml(options.heading);
+  const bodyText = escapeHtml(options.bodyText).replace(/\n/g, "<br />");
+  const helperText = options.helperText ? `<p style="margin:16px 0 0;color:#5f6774;font-size:14px;line-height:1.6;">${escapeHtml(options.helperText)}</p>` : "";
+  const cta = options.ctaLabel && options.ctaUrl ? `<a href="${escapeHtml(options.ctaUrl)}" style="display:inline-block;margin-top:20px;background:#0f766e;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:600;font-size:14px;">${escapeHtml(options.ctaLabel)}</a>` : "";
+  const footerNote = options.footerNote ? `<p style="margin:0;color:#7a8393;font-size:12px;line-height:1.6;">${escapeHtml(options.footerNote)}</p>` : "";
+  return `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>${escapeHtml(options.subject)}</title>
+  </head>
+  <body style="margin:0;padding:0;background:#f4f6fb;font-family:Segoe UI,Arial,sans-serif;">
+    <span style="display:none!important;opacity:0;color:transparent;height:0;width:0;overflow:hidden;">${previewText}</span>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:24px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border-radius:16px;padding:28px;border:1px solid #e5e9f2;">
+            <tr>
+              <td>
+                <p style="margin:0 0 8px;color:#0f766e;font-weight:700;font-size:13px;letter-spacing:.08em;text-transform:uppercase;">Biddyaloy</p>
+                <h1 style="margin:0;color:#111827;font-size:24px;line-height:1.3;">${heading}</h1>
+                <p style="margin:16px 0 0;color:#364153;font-size:15px;line-height:1.7;">${bodyText}</p>
+                ${helperText}
+                ${cta}
+              </td>
+            </tr>
+          </table>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;margin-top:10px;padding:0 8px;">
+            <tr>
+              <td align="center">${footerNote}</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
+// src/app/shared/email/templates/passwordResetEmail.ts
+function buildPasswordResetEmail(payload) {
+  const subject = "Reset your Biddyaloy password";
+  const validityLabel = `${payload.validityMinutes} minute${payload.validityMinutes > 1 ? "s" : ""}`;
+  const html = buildEmailTemplate({
+    subject,
+    previewText: "Use this secure link to reset your password",
+    heading: "Password reset requested",
+    bodyText: "We received a request to reset your Biddyaloy account password. Use the button below to set a new password.",
+    helperText: `This link expires in ${validityLabel}. If you did not request this, you can safely ignore this email.`,
+    ctaLabel: "Reset password",
+    ctaUrl: payload.resetPasswordUrl,
+    footerNote: "For your security, Biddyaloy support will never ask for your password or reset link."
+  });
+  const text = [
+    "Password reset requested",
+    "",
+    `Reset link: ${payload.resetPasswordUrl}`,
+    `This link expires in ${validityLabel}.`
+  ].join("\n");
+  return {
+    subject,
+    html,
+    text
+  };
+}
+
+// src/app/lib/auth.ts
+var isProduction = process.env.NODE_ENV === "production";
+function normalizeUrlCandidate(value) {
+  if (!value) {
+    return void 0;
+  }
+  return value.trim().replace(/\/$/, "");
+}
+function isLocalhostUrl(value) {
+  try {
+    const parsed = new URL(value);
+    return parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+  } catch {
+    return false;
+  }
+}
+function resolveAuthBaseUrl() {
+  const candidates = [
+    normalizeUrlCandidate(process.env.FRONTEND_PUBLIC_URL),
+    normalizeUrlCandidate(process.env.BACKEND_PUBLIC_URL),
+    normalizeUrlCandidate(process.env.BETTER_AUTH_URL),
+    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : void 0
+  ].filter((value) => Boolean(value));
+  if (!isProduction) {
+    return candidates[0];
+  }
+  const firstNonLocal = candidates.find((candidate) => !isLocalhostUrl(candidate));
+  return firstNonLocal ?? candidates[0];
+}
+var resolvedBaseURL = resolveAuthBaseUrl();
+var cookieAttributes = isProduction ? {
+  sameSite: "none",
+  secure: true,
+  httpOnly: true,
+  path: "/"
+} : {
+  sameSite: "lax",
+  secure: false,
+  httpOnly: true,
+  path: "/"
+};
+var googleClientId = process.env.GOOGLE_CLIENT_ID?.trim();
+var googleClientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
+function getFrontendResetPasswordUrl(token) {
+  const frontendBase = process.env.FRONTEND_PUBLIC_URL;
+  if (!frontendBase) {
+    return void 0;
+  }
+  const normalized = frontendBase.endsWith("/") ? frontendBase.slice(0, -1) : frontendBase;
+  return `${normalized}/reset-password?token=${encodeURIComponent(token)}`;
+}
+var auth = betterAuth({
+  secret: process.env.AUTH_SECRET ?? process.env.BETTER_AUTH_SECRET,
+  baseURL: resolvedBaseURL,
+  basePath: "/api/auth",
+  trustedOrigins: buildTrustedOrigins(),
+  useSecureCookies: isProduction,
+  defaultCookieAttributes: cookieAttributes,
+  database: prismaAdapter(prisma, {
+    provider: "postgresql"
+  }),
+  emailAndPassword: {
+    enabled: true,
+    resetPasswordTokenExpiresIn: 60 * 30,
+    revokeSessionsOnPasswordReset: true,
+    sendResetPassword: async ({ user, url, token }) => {
+      const resetPasswordUrl = getFrontendResetPasswordUrl(token) ?? url;
+      const message = buildPasswordResetEmail({
+        resetPasswordUrl,
+        validityMinutes: 30
+      });
+      await sendEmail({
+        to: user.email,
+        subject: message.subject,
+        html: message.html,
+        text: message.text
+      });
+    }
+  },
+  ...googleClientId && googleClientSecret ? {
+    socialProviders: {
+      google: {
+        clientId: googleClientId,
+        clientSecret: googleClientSecret,
+        prompt: "select_account consent",
+        accessType: "offline"
+      }
+    }
+  } : {},
+  session: {
+    cookieCache: {
+      enabled: false
+    }
+  },
+  advanced: {
+    cookiePrefix: "better-auth",
+    useSecureCookies: isProduction,
+    crossSubDomainCookies: {
+      enabled: false
+    },
+    defaultCookieAttributes: cookieAttributes
+  },
+  user: {
+    additionalFields: {
+      bio: {
+        type: "string",
+        required: false,
+        defaultValue: null
+      },
+      contactNo: {
+        type: "string",
+        required: false,
+        defaultValue: null
+      },
+      presentAddress: {
+        type: "string",
+        required: false,
+        defaultValue: null
+      },
+      permanentAddress: {
+        type: "string",
+        required: false,
+        defaultValue: null
+      },
+      bloodGroup: {
+        type: "string",
+        required: false,
+        defaultValue: null
+      },
+      gender: {
+        type: "string",
+        required: false,
+        defaultValue: null
+      },
+      accountStatus: {
+        type: "string",
+        required: true,
+        defaultValue: AccountStatus.PENDING
+      },
+      role: {
+        type: "string",
+        required: false,
+        defaultValue: "UNAUTHENTICATED"
+      }
+    }
+  }
+});
+
 // src/app/middleware/requireSessionRole.ts
 async function resolveInstitutionIdForUser(user) {
   if (user.role === "ADMIN") {
@@ -1185,6 +1500,9 @@ function canBypassSubscriptionExpiry(user, req) {
 }
 var SESSION_COOKIE_KEYS = [
   "__Secure-better-auth.session_token",
+  "__Secure-better-auth.session-token",
+  "__Host-better-auth.session_token",
+  "__Host-better-auth.session-token",
   "better-auth.session_token",
   "better-auth.session-token",
   "session_token",
@@ -1222,7 +1540,59 @@ function getSessionTokenFromRequest(req) {
       return token;
     }
   }
+  for (const [key, value] of cookieMap.entries()) {
+    const normalizedKey = key.toLowerCase();
+    const looksLikeBetterAuthSession = normalizedKey.includes("better-auth") && (normalizedKey.includes("session_token") || normalizedKey.includes("session-token"));
+    if (looksLikeBetterAuthSession && value) {
+      return value;
+    }
+  }
   return void 0;
+}
+function toHeaders(req) {
+  const headers = new Headers();
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        headers.append(key, entry);
+      }
+      continue;
+    }
+    if (typeof value === "string") {
+      headers.set(key, value);
+    }
+  }
+  return headers;
+}
+async function resolveUserFromRequest(req) {
+  const sessionData = await auth.api.getSession({
+    headers: toHeaders(req),
+    query: {
+      disableCookieCache: true
+    }
+  });
+  const userId = sessionData?.user?.id;
+  if (!userId) {
+    return null;
+  }
+  const userRecord = await prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      id: true,
+      role: true,
+      accountStatus: true
+    }
+  });
+  if (!userRecord) {
+    return null;
+  }
+  return {
+    id: userRecord.id,
+    role: userRecord.role,
+    accountStatus: userRecord.accountStatus
+  };
 }
 async function resolveUserFromSessionToken(sessionToken) {
   const session = await prisma.session.findUnique({
@@ -1255,15 +1625,22 @@ async function resolveUserFromSessionToken(sessionToken) {
 var requireSessionRole = (...roles) => {
   return async (req, res, next) => {
     try {
-      const sessionToken = getSessionTokenFromRequest(req);
-      if (!sessionToken) {
-        return res.status(401).json({
-          success: false,
-          message: "Unauthorized"
-        });
-      }
-      const user = await resolveUserFromSessionToken(sessionToken);
+      let user = await resolveUserFromRequest(req);
       if (!user) {
+        const fallbackToken = getSessionTokenFromRequest(req);
+        if (fallbackToken) {
+          user = await resolveUserFromSessionToken(fallbackToken);
+        }
+      }
+      if (!user) {
+        const cookieKeys = Array.from(getCookieMap(req.headers.cookie).keys());
+        const fallbackToken = getSessionTokenFromRequest(req);
+        console.log("[AUTH][BACKEND] requireSessionRole missing token", {
+          path: req.path,
+          method: req.method,
+          cookieKeys,
+          candidateTokenPreview: fallbackToken?.slice(0, 8) ?? null
+        });
         return res.status(401).json({
           success: false,
           message: "Unauthorized"
@@ -1601,306 +1978,6 @@ var ClassroomRouter = router2;
 
 // src/app/module/department/department.route.ts
 import { Router as Router3 } from "express";
-
-// src/app/lib/auth.ts
-import { betterAuth } from "better-auth";
-import { prismaAdapter } from "better-auth/adapters/prisma";
-
-// src/app/shared/originPolicy.ts
-var LOCAL_DEV_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"];
-function normalizeOrigin(value) {
-  return value.trim().replace(/\/$/, "");
-}
-function parseOriginList(rawValue) {
-  if (!rawValue) {
-    return [];
-  }
-  return rawValue.split(",").map((item) => normalizeOrigin(item)).filter(Boolean);
-}
-function parsePreviewPattern(rawPattern) {
-  if (!rawPattern) {
-    return null;
-  }
-  try {
-    return new RegExp(rawPattern);
-  } catch {
-    return null;
-  }
-}
-function buildOriginPolicy() {
-  const exactOrigins = /* @__PURE__ */ new Set([
-    ...LOCAL_DEV_ORIGINS,
-    ...parseOriginList(process.env.FRONTEND_PUBLIC_URL),
-    ...parseOriginList(process.env.FRONTEND_ALLOWED_ORIGINS)
-  ]);
-  const previewOriginPattern = parsePreviewPattern(process.env.FRONTEND_PREVIEW_URL_PATTERN);
-  return {
-    exactOrigins,
-    previewOriginPattern,
-    isAllowedOrigin(origin) {
-      const normalizedOrigin = normalizeOrigin(origin);
-      if (exactOrigins.has(normalizedOrigin)) {
-        return true;
-      }
-      if (previewOriginPattern?.test(normalizedOrigin)) {
-        return true;
-      }
-      return false;
-    }
-  };
-}
-function buildTrustedOrigins() {
-  const policy = buildOriginPolicy();
-  const trusted = new Set(policy.exactOrigins);
-  if (process.env.BACKEND_PUBLIC_URL) {
-    trusted.add(normalizeOrigin(process.env.BACKEND_PUBLIC_URL));
-  }
-  return [...trusted];
-}
-
-// src/app/shared/email/sendEmail.ts
-import nodemailer from "nodemailer";
-function getTransporter() {
-  const host = process.env.SMTP_HOST;
-  const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-  if (!host || !user || !pass) {
-    return null;
-  }
-  return nodemailer.createTransport({
-    host,
-    port,
-    secure: port === 465,
-    auth: {
-      user,
-      pass
-    }
-  });
-}
-async function sendEmail(payload) {
-  const transporter = getTransporter();
-  const fromAddress = process.env.MAIL_FROM;
-  if (!transporter || !fromAddress) {
-    console.warn(
-      "Email skipped: configure SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS and MAIL_FROM to send emails."
-    );
-    return;
-  }
-  await transporter.sendMail({
-    from: fromAddress,
-    to: payload.to,
-    subject: payload.subject,
-    html: payload.html,
-    text: payload.text
-  });
-}
-
-// src/app/shared/email/buildEmailTemplate.ts
-function escapeHtml(input) {
-  return input.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;").replace(/'/g, "&#039;");
-}
-function buildEmailTemplate(options) {
-  const previewText = options.previewText ? escapeHtml(options.previewText) : "";
-  const heading = escapeHtml(options.heading);
-  const bodyText = escapeHtml(options.bodyText).replace(/\n/g, "<br />");
-  const helperText = options.helperText ? `<p style="margin:16px 0 0;color:#5f6774;font-size:14px;line-height:1.6;">${escapeHtml(options.helperText)}</p>` : "";
-  const cta = options.ctaLabel && options.ctaUrl ? `<a href="${escapeHtml(options.ctaUrl)}" style="display:inline-block;margin-top:20px;background:#0f766e;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:600;font-size:14px;">${escapeHtml(options.ctaLabel)}</a>` : "";
-  const footerNote = options.footerNote ? `<p style="margin:0;color:#7a8393;font-size:12px;line-height:1.6;">${escapeHtml(options.footerNote)}</p>` : "";
-  return `<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>${escapeHtml(options.subject)}</title>
-  </head>
-  <body style="margin:0;padding:0;background:#f4f6fb;font-family:Segoe UI,Arial,sans-serif;">
-    <span style="display:none!important;opacity:0;color:transparent;height:0;width:0;overflow:hidden;">${previewText}</span>
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:24px 12px;">
-      <tr>
-        <td align="center">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border-radius:16px;padding:28px;border:1px solid #e5e9f2;">
-            <tr>
-              <td>
-                <p style="margin:0 0 8px;color:#0f766e;font-weight:700;font-size:13px;letter-spacing:.08em;text-transform:uppercase;">Biddyaloy</p>
-                <h1 style="margin:0;color:#111827;font-size:24px;line-height:1.3;">${heading}</h1>
-                <p style="margin:16px 0 0;color:#364153;font-size:15px;line-height:1.7;">${bodyText}</p>
-                ${helperText}
-                ${cta}
-              </td>
-            </tr>
-          </table>
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;margin-top:10px;padding:0 8px;">
-            <tr>
-              <td align="center">${footerNote}</td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-  </body>
-</html>`;
-}
-
-// src/app/shared/email/templates/passwordResetEmail.ts
-function buildPasswordResetEmail(payload) {
-  const subject = "Reset your Biddyaloy password";
-  const validityLabel = `${payload.validityMinutes} minute${payload.validityMinutes > 1 ? "s" : ""}`;
-  const html = buildEmailTemplate({
-    subject,
-    previewText: "Use this secure link to reset your password",
-    heading: "Password reset requested",
-    bodyText: "We received a request to reset your Biddyaloy account password. Use the button below to set a new password.",
-    helperText: `This link expires in ${validityLabel}. If you did not request this, you can safely ignore this email.`,
-    ctaLabel: "Reset password",
-    ctaUrl: payload.resetPasswordUrl,
-    footerNote: "For your security, Biddyaloy support will never ask for your password or reset link."
-  });
-  const text = [
-    "Password reset requested",
-    "",
-    `Reset link: ${payload.resetPasswordUrl}`,
-    `This link expires in ${validityLabel}.`
-  ].join("\n");
-  return {
-    subject,
-    html,
-    text
-  };
-}
-
-// src/app/lib/auth.ts
-var isProduction = process.env.NODE_ENV === "production";
-function normalizeUrlCandidate(value) {
-  if (!value) {
-    return void 0;
-  }
-  return value.trim().replace(/\/$/, "");
-}
-function isLocalhostUrl(value) {
-  try {
-    const parsed = new URL(value);
-    return parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
-  } catch {
-    return false;
-  }
-}
-function resolveAuthBaseUrl() {
-  const candidates = [
-    normalizeUrlCandidate(process.env.FRONTEND_PUBLIC_URL),
-    normalizeUrlCandidate(process.env.BACKEND_PUBLIC_URL),
-    normalizeUrlCandidate(process.env.BETTER_AUTH_URL),
-    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : void 0
-  ].filter((value) => Boolean(value));
-  if (!isProduction) {
-    return candidates[0];
-  }
-  const firstNonLocal = candidates.find((candidate) => !isLocalhostUrl(candidate));
-  return firstNonLocal ?? candidates[0];
-}
-var resolvedBaseURL = resolveAuthBaseUrl();
-var cookieAttributes = isProduction ? {
-  sameSite: "none",
-  secure: true,
-  httpOnly: true,
-  path: "/"
-} : {
-  sameSite: "lax",
-  secure: false,
-  httpOnly: true,
-  path: "/"
-};
-var googleClientId = process.env.GOOGLE_CLIENT_ID?.trim();
-var googleClientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
-function getFrontendResetPasswordUrl(token) {
-  const frontendBase = process.env.FRONTEND_PUBLIC_URL;
-  if (!frontendBase) {
-    return void 0;
-  }
-  const normalized = frontendBase.endsWith("/") ? frontendBase.slice(0, -1) : frontendBase;
-  return `${normalized}/reset-password?token=${encodeURIComponent(token)}`;
-}
-var auth = betterAuth({
-  secret: process.env.AUTH_SECRET ?? process.env.BETTER_AUTH_SECRET,
-  baseURL: resolvedBaseURL,
-  basePath: "/api/auth",
-  trustedOrigins: buildTrustedOrigins(),
-  useSecureCookies: isProduction,
-  defaultCookieAttributes: cookieAttributes,
-  database: prismaAdapter(prisma, {
-    provider: "postgresql"
-  }),
-  emailAndPassword: {
-    enabled: true,
-    resetPasswordTokenExpiresIn: 60 * 30,
-    revokeSessionsOnPasswordReset: true,
-    sendResetPassword: async ({ user, url, token }) => {
-      const resetPasswordUrl = getFrontendResetPasswordUrl(token) ?? url;
-      const message = buildPasswordResetEmail({
-        resetPasswordUrl,
-        validityMinutes: 30
-      });
-      await sendEmail({
-        to: user.email,
-        subject: message.subject,
-        html: message.html,
-        text: message.text
-      });
-    }
-  },
-  ...googleClientId && googleClientSecret ? {
-    socialProviders: {
-      google: {
-        clientId: googleClientId,
-        clientSecret: googleClientSecret
-      }
-    }
-  } : {},
-  user: {
-    additionalFields: {
-      bio: {
-        type: "string",
-        required: false,
-        defaultValue: null
-      },
-      contactNo: {
-        type: "string",
-        required: false,
-        defaultValue: null
-      },
-      presentAddress: {
-        type: "string",
-        required: false,
-        defaultValue: null
-      },
-      permanentAddress: {
-        type: "string",
-        required: false,
-        defaultValue: null
-      },
-      bloodGroup: {
-        type: "string",
-        required: false,
-        defaultValue: null
-      },
-      gender: {
-        type: "string",
-        required: false,
-        defaultValue: null
-      },
-      accountStatus: {
-        type: "string",
-        required: true,
-        defaultValue: AccountStatus.PENDING
-      },
-      role: {
-        type: "string",
-        required: false,
-        defaultValue: "UNAUTHENTICATED"
-      }
-    }
-  }
-});
 
 // src/app/module/department/department.service.ts
 function createHttpError3(statusCode, message) {
@@ -7064,6 +7141,9 @@ import { Router as Router4 } from "express";
 // src/app/middleware/requireSession.ts
 var SESSION_COOKIE_KEYS2 = [
   "__Secure-better-auth.session_token",
+  "__Secure-better-auth.session-token",
+  "__Host-better-auth.session_token",
+  "__Host-better-auth.session-token",
   "better-auth.session_token",
   "better-auth.session-token",
   "session_token",
@@ -7093,15 +7173,66 @@ function getSessionTokenFromRequest2(req) {
       return bearerToken;
     }
   }
-  const cookieHeader = req.headers.cookie;
-  const cookieMap = getCookieMap2(cookieHeader);
+  const cookieMap = getCookieMap2(req.headers.cookie);
   for (const key of SESSION_COOKIE_KEYS2) {
     const token = cookieMap.get(key);
     if (token) {
       return token;
     }
   }
+  for (const [key, value] of cookieMap.entries()) {
+    const normalizedKey = key.toLowerCase();
+    const looksLikeBetterAuthSession = normalizedKey.includes("better-auth") && (normalizedKey.includes("session_token") || normalizedKey.includes("session-token"));
+    if (looksLikeBetterAuthSession && value) {
+      return value;
+    }
+  }
   return void 0;
+}
+function toHeaders2(req) {
+  const headers = new Headers();
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        headers.append(key, entry);
+      }
+      continue;
+    }
+    if (typeof value === "string") {
+      headers.set(key, value);
+    }
+  }
+  return headers;
+}
+async function resolveUserFromRequest2(req) {
+  const sessionData = await auth.api.getSession({
+    headers: toHeaders2(req),
+    query: {
+      disableCookieCache: true
+    }
+  });
+  const userId = sessionData?.user?.id;
+  if (!userId) {
+    return null;
+  }
+  const userRecord = await prisma.user.findUnique({
+    where: {
+      id: userId
+    },
+    select: {
+      id: true,
+      role: true,
+      accountStatus: true
+    }
+  });
+  if (!userRecord) {
+    return null;
+  }
+  return {
+    id: userRecord.id,
+    role: userRecord.role,
+    accountStatus: userRecord.accountStatus
+  };
 }
 async function resolveUserFromSessionToken2(sessionToken) {
   const session = await prisma.session.findUnique({
@@ -7134,15 +7265,25 @@ async function resolveUserFromSessionToken2(sessionToken) {
 var requireSession = () => {
   return async (req, res, next) => {
     try {
-      const sessionToken = getSessionTokenFromRequest2(req);
-      if (!sessionToken) {
-        return res.status(401).json({
-          success: false,
-          message: "Unauthorized"
-        });
-      }
-      const user = await resolveUserFromSessionToken2(sessionToken);
+      let user = await resolveUserFromRequest2(req);
       if (!user) {
+        const fallbackToken = getSessionTokenFromRequest2(req);
+        if (fallbackToken) {
+          user = await resolveUserFromSessionToken2(fallbackToken);
+        }
+      }
+      if (!user) {
+        const cookieKeys = Array.from(getCookieMap2(req.headers.cookie).keys());
+        const fallbackToken = getSessionTokenFromRequest2(req);
+        console.log("[AUTH][BACKEND] requireSession invalid token", {
+          path: req.path,
+          method: req.method,
+          cookieKeys,
+          fallbackTokenPreview: fallbackToken ? `${fallbackToken.slice(0, 8)}...` : null,
+          candidateSessionCookieKeys: cookieKeys.filter(
+            (cookieKey) => SESSION_COOKIE_KEYS2.includes(cookieKey) || cookieKey.toLowerCase().includes("better-auth") && (cookieKey.toLowerCase().includes("session_token") || cookieKey.toLowerCase().includes("session-token"))
+          )
+        });
         return res.status(401).json({
           success: false,
           message: "Unauthorized"
@@ -8025,6 +8166,79 @@ var AuthService = {
 };
 
 // src/app/module/auth/auth.controller.ts
+var SESSION_COOKIE_KEYS3 = [
+  "__Secure-better-auth.session_token",
+  "better-auth.session_token",
+  "better-auth.session-token",
+  "session_token",
+  "auth_token"
+];
+var COOKIE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1e3;
+var isProduction2 = process.env.NODE_ENV === "production";
+function getCookieMap3(cookieHeader) {
+  const cookieMap = /* @__PURE__ */ new Map();
+  if (!cookieHeader) {
+    return cookieMap;
+  }
+  for (const part of cookieHeader.split(";")) {
+    const [rawKey, ...rawValueParts] = part.trim().split("=");
+    if (!rawKey) {
+      continue;
+    }
+    const rawValue = rawValueParts.join("=");
+    try {
+      cookieMap.set(rawKey, decodeURIComponent(rawValue ?? ""));
+    } catch {
+      cookieMap.set(rawKey, rawValue ?? "");
+    }
+  }
+  return cookieMap;
+}
+function resolveSessionToken(req) {
+  const authorizationHeader = req.headers.authorization;
+  if (authorizationHeader?.toLowerCase().startsWith("bearer ")) {
+    const bearerToken = authorizationHeader.slice("bearer ".length).trim();
+    if (bearerToken) {
+      return bearerToken;
+    }
+  }
+  const cookieMap = getCookieMap3(req.headers.cookie);
+  for (const key of SESSION_COOKIE_KEYS3) {
+    const token = cookieMap.get(key);
+    if (token) {
+      return token;
+    }
+  }
+  return void 0;
+}
+function setAuthMirrorCookies(req, res, role) {
+  const sessionToken = resolveSessionToken(req);
+  const normalizedRole = role?.toUpperCase() || "UNAUTHENTICATED";
+  const incomingCookieKeys = Array.from(getCookieMap3(req.headers.cookie).keys());
+  if (sessionToken) {
+    res.cookie("auth_token", sessionToken, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: isProduction2,
+      path: "/",
+      maxAge: COOKIE_MAX_AGE_MS
+    });
+  }
+  res.cookie("user_role", normalizedRole, {
+    httpOnly: false,
+    sameSite: "lax",
+    secure: isProduction2,
+    path: "/",
+    maxAge: COOKIE_MAX_AGE_MS
+  });
+  console.log("[AUTH][BACKEND] mirror cookies set", {
+    path: req.path,
+    method: req.method,
+    hasSessionToken: Boolean(sessionToken),
+    role: normalizedRole,
+    incomingCookieKeys
+  });
+}
 var registerUser2 = catchAsync(async (req, res) => {
   const payload = req.body;
   const result = await AuthService.registerUser(payload);
@@ -8068,9 +8282,10 @@ var getAccessStatus = catchAsync(async (_req, res) => {
     }
   });
 });
-var getSessionInfo2 = catchAsync(async (_req, res) => {
+var getSessionInfo2 = catchAsync(async (req, res) => {
   const user = res.locals.authUser;
   const result = await AuthService.getSessionInfo(user.id);
+  setAuthMirrorCookies(req, res, result.role);
   sendResponse(res, {
     httpStatusCode: 200,
     success: true,
@@ -8081,6 +8296,7 @@ var getSessionInfo2 = catchAsync(async (_req, res) => {
 var selectRole2 = catchAsync(async (req, res) => {
   const user = res.locals.authUser;
   const result = await AuthService.selectRole(user.id, req.body);
+  setAuthMirrorCookies(req, res, result.role);
   sendResponse(res, {
     httpStatusCode: 200,
     success: true,

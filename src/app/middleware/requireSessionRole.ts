@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import { AccountStatus } from "../../generated/prisma/enums";
+import { auth } from "../lib/auth";
 import { prisma } from "../lib/prisma";
 
 type AuthUserRole = "SUPERADMIN" | "ADMIN" | "FACULTY" | "DEPARTMENT" | "TEACHER" | "STUDENT";
@@ -99,6 +100,9 @@ function canBypassSubscriptionExpiry(user: SessionUser, req: Request) {
 
 const SESSION_COOKIE_KEYS = [
   "__Secure-better-auth.session_token",
+  "__Secure-better-auth.session-token",
+  "__Host-better-auth.session_token",
+  "__Host-better-auth.session-token",
   "better-auth.session_token",
   "better-auth.session-token",
   "session_token",
@@ -144,7 +148,72 @@ function getSessionTokenFromRequest(req: Request): string | undefined {
     }
   }
 
+  for (const [key, value] of cookieMap.entries()) {
+    const normalizedKey = key.toLowerCase();
+    const looksLikeBetterAuthSession =
+      normalizedKey.includes("better-auth") &&
+      (normalizedKey.includes("session_token") || normalizedKey.includes("session-token"));
+
+    if (looksLikeBetterAuthSession && value) {
+      return value;
+    }
+  }
+
   return undefined;
+}
+
+function toHeaders(req: Request): Headers {
+  const headers = new Headers();
+
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        headers.append(key, entry);
+      }
+      continue;
+    }
+
+    if (typeof value === "string") {
+      headers.set(key, value);
+    }
+  }
+
+  return headers;
+}
+
+async function resolveUserFromRequest(req: Request): Promise<SessionUser | null> {
+  const sessionData = await auth.api.getSession({
+    headers: toHeaders(req),
+    query: {
+      disableCookieCache: true,
+    },
+  });
+
+  const userId = sessionData?.user?.id;
+  if (!userId) {
+    return null;
+  }
+
+  const userRecord = await prisma.user.findUnique({
+    where: {
+      id: userId,
+    },
+    select: {
+      id: true,
+      role: true,
+      accountStatus: true,
+    },
+  });
+
+  if (!userRecord) {
+    return null;
+  }
+
+  return {
+    id: userRecord.id,
+    role: userRecord.role,
+    accountStatus: userRecord.accountStatus,
+  };
 }
 
 async function resolveUserFromSessionToken(sessionToken: string): Promise<SessionUser | null> {
@@ -182,16 +251,24 @@ async function resolveUserFromSessionToken(sessionToken: string): Promise<Sessio
 export const requireSessionRole = (...roles: AuthUserRole[]) => {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const sessionToken = getSessionTokenFromRequest(req);
-      if (!sessionToken) {
-        return res.status(401).json({
-          success: false,
-          message: "Unauthorized",
-        });
+      let user = await resolveUserFromRequest(req);
+
+      if (!user) {
+        const fallbackToken = getSessionTokenFromRequest(req);
+        if (fallbackToken) {
+          user = await resolveUserFromSessionToken(fallbackToken);
+        }
       }
 
-      const user = await resolveUserFromSessionToken(sessionToken);
       if (!user) {
+        const cookieKeys = Array.from(getCookieMap(req.headers.cookie).keys());
+        const fallbackToken = getSessionTokenFromRequest(req);
+        console.log("[AUTH][BACKEND] requireSessionRole missing token", {
+          path: req.path,
+          method: req.method,
+          cookieKeys,
+          candidateTokenPreview: fallbackToken?.slice(0, 8) ?? null,
+        });
         return res.status(401).json({
           success: false,
           message: "Unauthorized",

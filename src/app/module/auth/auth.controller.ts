@@ -3,6 +3,92 @@ import { AuthService } from "./auth.service";
 import { sendResponse } from "../../shared/sendResponse";
 import { catchAsync } from "../../shared/catchAsync";
 
+const SESSION_COOKIE_KEYS = [
+  "__Secure-better-auth.session_token",
+  "better-auth.session_token",
+  "better-auth.session-token",
+  "session_token",
+  "auth_token",
+];
+
+const COOKIE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const isProduction = process.env.NODE_ENV === "production";
+
+function getCookieMap(cookieHeader: string | undefined): Map<string, string> {
+  const cookieMap = new Map<string, string>();
+  if (!cookieHeader) {
+    return cookieMap;
+  }
+
+  for (const part of cookieHeader.split(";")) {
+    const [rawKey, ...rawValueParts] = part.trim().split("=");
+    if (!rawKey) {
+      continue;
+    }
+
+    const rawValue = rawValueParts.join("=");
+    try {
+      cookieMap.set(rawKey, decodeURIComponent(rawValue ?? ""));
+    } catch {
+      cookieMap.set(rawKey, rawValue ?? "");
+    }
+  }
+
+  return cookieMap;
+}
+
+function resolveSessionToken(req: Request): string | undefined {
+  const authorizationHeader = req.headers.authorization;
+  if (authorizationHeader?.toLowerCase().startsWith("bearer ")) {
+    const bearerToken = authorizationHeader.slice("bearer ".length).trim();
+    if (bearerToken) {
+      return bearerToken;
+    }
+  }
+
+  const cookieMap = getCookieMap(req.headers.cookie);
+  for (const key of SESSION_COOKIE_KEYS) {
+    const token = cookieMap.get(key);
+    if (token) {
+      return token;
+    }
+  }
+
+  return undefined;
+}
+
+function setAuthMirrorCookies(req: Request, res: Response, role: string | null | undefined) {
+  const sessionToken = resolveSessionToken(req);
+  const normalizedRole = role?.toUpperCase() || "UNAUTHENTICATED";
+  const incomingCookieKeys = Array.from(getCookieMap(req.headers.cookie).keys());
+
+  if (sessionToken) {
+    res.cookie("auth_token", sessionToken, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: isProduction,
+      path: "/",
+      maxAge: COOKIE_MAX_AGE_MS,
+    });
+  }
+
+  res.cookie("user_role", normalizedRole, {
+    httpOnly: false,
+    sameSite: "lax",
+    secure: isProduction,
+    path: "/",
+    maxAge: COOKIE_MAX_AGE_MS,
+  });
+
+  console.log("[AUTH][BACKEND] mirror cookies set", {
+    path: req.path,
+    method: req.method,
+    hasSessionToken: Boolean(sessionToken),
+    role: normalizedRole,
+    incomingCookieKeys,
+  });
+}
+
 const registerUser = catchAsync(async (req: Request, res: Response) => {
   const payload = req.body;
 
@@ -55,9 +141,11 @@ const getAccessStatus = catchAsync(async (_req: Request, res: Response) => {
   });
 });
 
-const getSessionInfo = catchAsync(async (_req: Request, res: Response) => {
+const getSessionInfo = catchAsync(async (req: Request, res: Response) => {
   const user = res.locals.authUser as { id: string };
   const result = await AuthService.getSessionInfo(user.id);
+
+  setAuthMirrorCookies(req, res, result.role);
 
   sendResponse(res, {
     httpStatusCode: 200,
@@ -70,6 +158,8 @@ const getSessionInfo = catchAsync(async (_req: Request, res: Response) => {
 const selectRole = catchAsync(async (req: Request, res: Response) => {
   const user = res.locals.authUser as { id: string };
   const result = await AuthService.selectRole(user.id, req.body);
+
+  setAuthMirrorCookies(req, res, result.role);
 
   sendResponse(res, {
     httpStatusCode: 200,
